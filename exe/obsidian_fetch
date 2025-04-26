@@ -10,7 +10,7 @@ version '0.1.0'
 
 vault_pathes = ARGV
 
-vault = ObsidianFetch.Vault.new(vault_pathes)
+vault = ObsidianFetch::Vault.new(vault_pathes)
 STDERR.puts "Found #{vault.notes.size} notes"
 STDERR.puts "Found #{vault.links_by_file_name.size} links and #{vault.links_by_file_path.size} files linked by notes"
 
