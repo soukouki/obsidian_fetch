@@ -1,0 +1,73 @@
+# !/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'obsidian_fetch'
+
+
+name 'obsidian-fetch'
+
+version '0.1.0'
+
+vault_pathes = ARGV
+
+vault = Vault.new(vault_pathes)
+STDERR.puts "Found #{vault.notes.size} notes"
+STDERR.puts "Found #{vault.links_by_file_name.size} links and #{vault.links_by_file_path.size} files linked by notes"
+
+tool 'read' do
+  description <<~EOS
+    Read a note from Obsidian vault.
+    If I find multiple notes with the same name, I will show you all of them.
+  EOS
+  argument :name, String, required: true, description: "Note name to read"
+  call do |args|
+    name = args[:name]
+    # 名前が文字列でない場合
+    next 'Name must be a string' unless name.is_a?(String)
+    tool_read(vault, name)
+  end
+end
+
+tool 'read_multiple' do
+  description <<~EOS
+    Read a notes from Obsidian vault.
+    If I find multiple notes with the same name, I will show you all of them.
+  EOS
+  argument :names, Array, items: String, required: true, description: "Note names to read"
+  call do |args|
+    names = args[:names]
+    # 名前が文字列の配列でない場合
+    next 'Name must be an array of strings' unless names.is_a?(Array) && names.all? { |name| name.is_a?(String) }
+    names.map do |name|
+      tool_read(vault, name)
+    end.join("\n\n---\n\n")
+  end
+end
+
+tool 'list' do
+  description <<~EOS
+    Search for files with matching names partially.
+  EOS
+  argument :name, String, required: true, description: "Note name to search"
+  call do |args|
+    name = args[:name]
+    # 名前が文字列でない場合
+    next 'Name must be a string' unless name.is_a?(String)
+    tool_list(vault, name)
+  end
+end
+
+tool 'list_multiple' do
+  description <<~EOS
+    Search for files with matching names partially.
+  EOS
+  argument :names, Array, items: String, required: true, description: "Note names to search"
+  call do |args|
+    names = args[:names]
+    # 名前が文字列の配列でない場合
+    next 'Name must be an array of strings' unless names.is_a?(Array) && names.all? { |name| name.is_a?(String) }
+    names.map do |name|
+      tool_list(vault, name)
+    end.join("\n\n---\n\n")
+  end
+end
