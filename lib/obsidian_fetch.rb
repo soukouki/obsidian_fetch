@@ -129,7 +129,7 @@ module ObsidianFetch
     end
   end
 
-  def tool_read vault, name
+  def self.tool_read vault, name
     name = Vault.normalize_note_name(name)
     file_pathes = vault.notes[name]
     # 名前のノートが存在しない場合
@@ -165,7 +165,7 @@ module ObsidianFetch
   end
   
   MAX_LIST_SIZE = 20
-  def tool_list vault, name
+  def self.tool_list vault, name
     name = Vault.normalize_note_name(name)
     split_name = name.split(/[\s　]+/)
     matched_notes = vault.notes.select do |note_name, _file_pathes|
