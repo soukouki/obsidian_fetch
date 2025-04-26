@@ -14,6 +14,7 @@ Additionally, the new server has the following features:
 - When the LLM tries to retrieve link information and searches with brackets like `[[link name]]`, it automatically removes characters that cannot be used in links.
 - When reading a file, if there are links pointing to the opened file, it displays them.
 	- Especially in network-style note tools like Obsidian, following such links to load related notes can be very powerful.
+- Support for aliases.
 
 ## Installation
 
