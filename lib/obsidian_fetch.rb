@@ -2,7 +2,7 @@
 
 require 'yaml'
 require 'date'
-require 'mcp/mcp'
+require 'mcp'
 
 require_relative "obsidian_fetch/version"
 
