@@ -1,38 +1,35 @@
 # ObsidianFetch
 
-TODO: Delete this and the text below, and describe your gem
+MCP servers specialising in retrieving information from Obsidian vaults.
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/obsidian_fetch`. To experiment with that code, run `bin/console` for an interactive prompt.
+The existing MCP server has the following drawbacks:
+- There are many commands, and when computational resources are limited, it can take a long time to load the prompt.
+- When reading a note labeled "LLM," it is necessary to search for the path first before loading it, but the LLM may not always follow this procedure.
+- Some tools have unnecessary options, causing the LLM to sometimes fail to invoke the tool correctly.
+
+These issues become particularly noticeable when running an LLM on a local GPU.  
+To address this, we developed a new MCP server that simply retrieves and loads a list of notes.
+
+Additionally, the new server has the following features:
+- When the LLM tries to retrieve link information and searches with brackets like `[[link name]]`, it automatically removes characters that cannot be used in links.
+- When reading a file, if there are links pointing to the opened file, it displays them.
+	- Especially in network-style note tools like Obsidian, following such links to load related notes can be very powerful.
 
 ## Installation
 
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
-
-Install the gem and add to the application's Gemfile by executing:
-
 ```bash
-bundle add UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
-```
-
-If bundler is not being used to manage dependencies, install the gem by executing:
-
-```bash
-gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+gem install obsidian_fetch
 ```
 
 ## Usage
 
-TODO: Write usage instructions here
-
-## Development
-
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake ` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
-
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+```bash
+obsidian_fetch /path/to/your/vault
+```
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/obsidian_fetch.
+Bug reports and pull requests are welcome on GitHub at https://github.com/soukouki/obsidian_fetch.
 
 ## License
 
