@@ -1,6 +1,6 @@
 # ObsidianFetch
 
-MCP servers focused on fetching and presenting information from Obsidian vaults
+MCP servers focused on fetching and presenting information from Obsidian vaults.
 
 The existing MCP server has the following drawbacks:
 - It supports many commands, which can cause slow prompt loading when computational resources are limited.
