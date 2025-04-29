@@ -1,20 +1,19 @@
 # ObsidianFetch
 
-MCP servers specialising in retrieving information from Obsidian vaults.
+MCP servers focused on fetching and presenting information from Obsidian vaults
 
 The existing MCP server has the following drawbacks:
-- There are many commands, and when computational resources are limited, it can take a long time to load the prompt.
-- When reading a note labeled "LLM," it is necessary to search for the path first before loading it, but the LLM may not always follow this procedure.
-- Some tools have unnecessary options, causing the LLM to sometimes fail to invoke the tool correctly.
+- It supports many commands, which can cause slow prompt loading when computational resources are limited.
+- When reading a note labeled "LLM", it is necessary to search for its path first before loading it, but the LLM may not always follow this procedure.
+- Some tools include unnecessary options, leading the LLM to sometimes fail to invoke them correctly.
 
 These issues become particularly noticeable when running an LLM on a local GPU.  
-To address this, we developed a new MCP server that simply retrieves and loads a list of notes.
+To address this, we developed a new MCP server that simply retrieves and loads lists of notes.
 
-Additionally, the new server has the following features:
-- When the LLM tries to retrieve link information and searches with brackets like `[[link name]]`, it automatically removes characters that cannot be used in links.
-- When reading a file, if there are links pointing to the opened file, it displays them.
-	- Especially in network-style note tools like Obsidian, following such links to load related notes can be very powerful.
-- Support for aliases.
+The new server also provides the following additional features:
+- When the LLM attempts to retrieve link information by searching with brackets like `[[link name]]`, the server automatically removes any characters that cannot be used in links.
+- In addition to loading the note contents, it also displays backlinks—notes that link to the currently opened note.
+	- This allows the LLM to load and understand the connections between related notes via backlinks.
 
 ## Installation
 

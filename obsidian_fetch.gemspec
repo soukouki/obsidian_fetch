@@ -8,7 +8,7 @@ Gem::Specification.new do |spec|
   spec.authors = ["sou7"]
   spec.email = ["soukouki0@yahoo.co.jp"]
 
-  spec.summary = "MCP servers specialising in retrieving information from Obsidian vaults."
+  spec.summary = "MCP servers focused on fetching and presenting information from Obsidian vaults"
   spec.homepage = "https://ob.sou7.io/2025-04/week17/obsidian_fetch"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.1.0"
