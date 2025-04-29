@@ -127,80 +127,83 @@ module ObsidianFetch
         file_pathes.uniq!
       end
     end
-  end
 
-  def tool_read name
-    name = Vault.normalize_note_name(name)
-    file_pathes = @notes[name]
-    # 名前のノートが存在しない場合
-    if file_pathes.nil?
-      return "Note not found: #{name}" if @links_by_file_name[name].nil?
-      file_pathes = @links_by_file_name[name]
-      return <<~EOS
-        Note not found: #{name}
-        However, I found other notes linked to this note.
-        #{file_pathes.map { |file_path| "- #{file_path}" }.join("\n")}
-      EOS
-    end
-  
-    # 複数のファイルがある場合は、---とファイル名で区切って返す
-    file_pathes.map do |file_path|
-      content = open(file_path) { |f| f.read.force_encoding('UTF-8') }
-      link_notes = if @links_by_file_path[file_path].nil?
-        ""
-      else
-        <<~EOS
-          This note is linked by the following notes:
-          #{(@links_by_file_path[file_path] || []).shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
+    public
+
+    def tool_read name
+      name = Vault.normalize_note_name(name)
+      file_pathes = @notes[name]
+      # 名前のノートが存在しない場合
+      if file_pathes.nil?
+        return "Note not found: #{name}" if @links_by_file_name[name].nil?
+        file_pathes = @links_by_file_name[name]
+        return <<~EOS
+          Note not found: #{name}
+          However, I found other notes linked to this note.
+          #{file_pathes.map { |file_path| "- #{file_path}" }.join("\n")}
         EOS
       end
-      preface = <<~EOS
-        The contents of the note '#{name}' is as follows.
-        #{link_notes}
-        ---
-  
-      EOS
-      preface + content
-    end.join("\n\n---\n\n")
+    
+      # 複数のファイルがある場合は、---とファイル名で区切って返す
+      file_pathes.map do |file_path|
+        content = open(file_path) { |f| f.read.force_encoding('UTF-8') }
+        link_notes = if @links_by_file_path[file_path].nil?
+          ""
+        else
+          <<~EOS
+            This note is linked by the following notes:
+            #{(@links_by_file_path[file_path] || []).shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
+          EOS
+        end
+        preface = <<~EOS
+          The contents of the note '#{name}' is as follows.
+          #{link_notes}
+          ---
+    
+        EOS
+        preface + content
+      end.join("\n\n---\n\n")
+    end
+    
+    MAX_LIST_SIZE = 20
+    def tool_list name
+      name = Vault.normalize_note_name(name)
+      split_name = name.split(/[\s　]+/)
+      # 空白文字で検索された場合は失敗した旨を返す
+      # 仮に全ノートからランダムなMAX_LIST_SIZEを返してしまうと、LLMが誤って呼び出した場合に偽の関連性を持ってしまうため
+      if split_name.empty?
+        return <<~EOS
+          It cannot be listed in a blank string.
+        EOS
+      end
+      matched_notes = @notes.select do |note_name, _file_pathes|
+        split_name.map {|name_part| note_name.include?(name_part) }.all?
+      end
+      # 名前で検索したが見つからない場合
+      if matched_notes.empty?
+        has_found_link = @links_by_file_name[name] && !@links_by_file_name[name].empty?
+        return <<~EOS unless has_found_link
+          Note not found: #{name}
+          Search again with a substring or a string with a different notation.
+        EOS
+        return <<~EOS
+          Note not found: #{name}
+          However, I found other notes linked to this note.
+          #{@links_by_file_name[name].shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
+        EOS
+      end
+      # マッチした名前の数が多すぎる場合は、ランダムにMAX_LIST_SIZE個選ぶ
+      preface = "Notes matching '#{name}' are as follows.\n"
+      if matched_notes.size > MAX_LIST_SIZE
+        matched_notes = matched_notes.to_a.sample(MAX_LIST_SIZE).to_h
+        preface = "Too many notes matched. I will show you only #{MAX_LIST_SIZE} of them.\n" + preface
+      end
+      # マッチした名前のリストで返す
+      list = matched_notes.keys.shuffle.map do |note_name|
+        "- #{note_name}"
+      end.join("\n")
+      preface + list
+    end
   end
-  
-  MAX_LIST_SIZE = 20
-  def tool_list name
-    name = Vault.normalize_note_name(name)
-    split_name = name.split(/[\s　]+/)
-    # 空白文字で検索された場合は失敗した旨を返す
-    # 仮に全ノートからランダムなMAX_LIST_SIZEを返してしまうと、LLMが誤って呼び出した場合に偽の関連性を持ってしまうため
-    if split_name.empty?
-      return <<~EOS
-        It cannot be listed in a blank string.
-      EOS
-    end
-    matched_notes = @notes.select do |note_name, _file_pathes|
-      split_name.map {|name_part| note_name.include?(name_part) }.all?
-    end
-    # 名前で検索したが見つからない場合
-    if matched_notes.empty?
-      has_found_link = @links_by_file_name[name] && !@links_by_file_name[name].empty?
-      return <<~EOS unless has_found_link
-        Note not found: #{name}
-        Search again with a substring or a string with a different notation.
-      EOS
-      return <<~EOS
-        Note not found: #{name}
-        However, I found other notes linked to this note.
-        #{@links_by_file_name[name].shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
-      EOS
-    end
-    # マッチした名前の数が多すぎる場合は、ランダムにMAX_LIST_SIZE個選ぶ
-    preface = "Notes matching '#{name}' are as follows.\n"
-    if matched_notes.size > MAX_LIST_SIZE
-      matched_notes = matched_notes.to_a.sample(MAX_LIST_SIZE).to_h
-      preface = "Too many notes matched. I will show you only #{MAX_LIST_SIZE} of them.\n" + preface
-    end
-    # マッチした名前のリストで返す
-    list = matched_notes.keys.shuffle.map do |note_name|
-      "- #{note_name}"
-    end.join("\n")
-    preface + list
-  end
+
 end
