@@ -24,7 +24,7 @@ tool 'read' do
     name = args[:name]
     # 名前が文字列でない場合
     next 'Name must be a string' unless name.is_a?(String)
-    ObsidianFetch::tool_read(vault, name)
+    vault.tool_read(name)
   end
 end
 
@@ -39,7 +39,7 @@ tool 'read_multiple' do
     # 名前が文字列の配列でない場合
     next 'Name must be an array of strings' unless names.is_a?(Array) && names.all? { |name| name.is_a?(String) }
     names.map do |name|
-      ObsidianFetch::tool_read(vault, name)
+      vault.tool_read(name)
     end.join("\n\n---\n\n")
   end
 end
@@ -53,7 +53,7 @@ tool 'list' do
     name = args[:name]
     # 名前が文字列でない場合
     next 'Name must be a string' unless name.is_a?(String)
-    ObsidianFetch::tool_list(vault, name)
+    vault.tool_list(name)
   end
 end
 
@@ -67,7 +67,7 @@ tool 'list_multiple' do
     # 名前が文字列の配列でない場合
     next 'Name must be an array of strings' unless names.is_a?(Array) && names.all? { |name| name.is_a?(String) }
     names.map do |name|
-      ObsidianFetch::tool_list(vault, name)
+      vault.tool_list(name)
     end.join("\n\n---\n\n")
   end
 end
