@@ -133,18 +133,60 @@ module ObsidianFetch
     def tool_read name
       name = Vault.normalize_note_name(name)
       file_pathes = @notes[name]
+
+      # 名前のノートが見つからないが、nameがパスっぽい場合は、パスを修正したうえでもう一度試す
+      preface = ""
+      if file_pathes.nil? && name.include?('/')
+        fixed_name = File.basename(name, '.md')
+        file_pathes = @notes[fixed_name]
+        if file_pathes.nil?
+          # もしも名前で見つからなければ、リンクにも存在しないか確認する
+          link_pathes = @links_by_file_name[fixed_name]
+          if link_pathes.nil?
+            return note_not_found(name)
+          else
+            # リンク先のノートが見つかった場合は、prefaceを追加する
+            preface = <<~EOS
+              Presumably a path was specified. The process was automatically renamed and processed.
+            EOS
+            return list_links(fixed_name, preface)
+          end
+        else
+          # ノート名が見つかった場合は、prefaceを追加する
+          preface = <<~EOS
+            Presumably a path was specified. The process was automatically renamed and processed.
+          EOS
+          return open_file(file_pathes, preface)
+        end
+      end
+
       # 名前のノートが存在しない場合
       if file_pathes.nil?
-        return "Note not found: #{name}" if @links_by_file_name[name].nil?
-        return <<~EOS
-          Note not found: #{name}
-          However, I found other notes linked to this note.
-          #{@links_by_file_name[name].shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
-        EOS
+        return note_not_found(name) if @links_by_file_name[name].nil?
+        return list_links(name, preface)
       end
-    
+
+      open_file(file_pathes, preface)
+    end
+
+    private def note_not_found name
+      return <<~EOS
+        Note not found: #{name}
+      EOS
+    end
+
+    private def list_links name, preface
+      return <<~EOS
+        #{preface}
+        Note not found: #{name}
+        However, I found other notes linked to this note.
+        #{@links_by_file_name[name].shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
+      EOS
+    end
+
+    private def open_file file_pathes, preface
       # 複数のファイルがある場合は、---とファイル名で区切って返す
-      file_pathes.map do |file_path|
+      result = file_pathes.map do |file_path|
         content = open(file_path) { |f| f.read.force_encoding('UTF-8') }
         link_notes = if @links_by_file_path[file_path].nil?
           ""
@@ -154,16 +196,16 @@ module ObsidianFetch
             #{(@links_by_file_path[file_path] || []).shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
           EOS
         end
-        preface = <<~EOS
+        metadata = <<~EOS
           The contents of the note '#{name}' is as follows.
           #{link_notes}
           ---
-    
         EOS
-        preface + content
+        metadata + content
       end.join("\n\n---\n\n")
+      preface + result
     end
-    
+
     MAX_LIST_SIZE = 20
     def tool_list name
       name = Vault.normalize_note_name(name)
