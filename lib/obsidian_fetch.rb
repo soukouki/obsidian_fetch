@@ -136,11 +136,10 @@ module ObsidianFetch
       # 名前のノートが存在しない場合
       if file_pathes.nil?
         return "Note not found: #{name}" if @links_by_file_name[name].nil?
-        file_pathes = @links_by_file_name[name]
         return <<~EOS
           Note not found: #{name}
           However, I found other notes linked to this note.
-          #{file_pathes.map { |file_path| "- #{file_path}" }.join("\n")}
+          #{@links_by_file_name[name].shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
         EOS
       end
     
