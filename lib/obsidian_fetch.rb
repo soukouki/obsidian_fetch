@@ -156,7 +156,7 @@ module ObsidianFetch
           preface = <<~EOS
             Presumably a path was specified. The process was automatically renamed and processed.
           EOS
-          return open_file(file_pathes, preface)
+          return open_file(fixed_name, file_pathes, preface)
         end
       end
 
@@ -166,7 +166,7 @@ module ObsidianFetch
         return list_links(name, preface)
       end
 
-      open_file(file_pathes, preface)
+      open_file(name, file_pathes, preface)
     end
 
     private def note_not_found name
@@ -184,7 +184,7 @@ module ObsidianFetch
       EOS
     end
 
-    private def open_file file_pathes, preface
+    private def open_file name, file_pathes, preface
       # 複数のファイルがある場合は、---とファイル名で区切って返す
       result = file_pathes.map do |file_path|
         content = open(file_path) { |f| f.read.force_encoding('UTF-8') }
