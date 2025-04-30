@@ -4,7 +4,7 @@ MCP servers focused on fetching and presenting information from Obsidian vaults.
 
 The existing MCP server has the following drawbacks:
 - It supports many commands, which can cause slow prompt loading when computational resources are limited.
-- When reading a note labeled "LLM", it is necessary to search for its path first before loading it, but the LLM may not always follow this procedure.
+- When reading a note labeled "Sample Note", it is necessary to search for its path first before loading it, but the LLM may not always follow this procedure.
 - Some tools include unnecessary options, leading the LLM to sometimes fail to invoke them correctly.
 
 These issues become particularly noticeable when running an LLM on a local GPU.  
