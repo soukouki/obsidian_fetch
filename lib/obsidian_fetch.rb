@@ -2,7 +2,6 @@
 
 require 'yaml'
 require 'date'
-require 'mcp'
 
 require_relative "obsidian_fetch/version"
 
@@ -82,6 +81,7 @@ module ObsidianFetch
         # もしリンクが設定されていれば、linksに追加する
         # [[link]]と[[link|displayname]]の場合
         # linkに.mdが付いている場合、付いていない場合両方を考慮する
+        # TODO : linkにディレクトリ名が着くことがあるので、それを除去する
         content.scan(/\[\[(.*?)(?:\|.*)?\]\]/) do |match|
           link_name = match[0]
           link_name = link_name.sub(/\.md$/, '') # .mdを削除
