@@ -139,7 +139,11 @@ when 'streamable-http'
   require 'rack'
 
   # Streamable HTTP トランスポートを使用してサーバーを起動
-  transport = MCP::Server::Transports::StreamableHTTPTransport.new(server, stateless: true)
+  transport = MCP::Server::Transports::StreamableHTTPTransport.new(
+    server,
+    stateless: true,
+    enable_json_response: true
+  )
 
   # PumaでRack appとして起動
   $stdout.sync = true
