@@ -1,5 +1,7 @@
 # ObsidianFetch
 
+> Languages: [日本語](README_ja.md)
+
 MCP servers focused on fetching and presenting information from Obsidian vaults.
 
 The existing MCP server has the following drawbacks:
@@ -23,9 +25,30 @@ gem install obsidian_fetch
 
 ## Usage
 
+### Stdio Transport (default)
+
 ```bash
 obsidian_fetch /path/to/your/vault
 ```
+
+### Streamable HTTP Transport
+
+To run the server as an HTTP server:
+
+```bash
+obsidian_fetch /path/to/your/vault --transport streamable-http
+```
+
+By default, the server listens on `http://localhost:9292`. You can customize the port:
+
+```bash
+obsidian_fetch /path/to/your/vault --transport streamable-http --port 3000
+```
+
+## Tools
+
+- **read**: Read a note from the Obsidian vault. If multiple notes with the same name are found, all will be shown.
+- **list**: Search for files with matching names partially.
 
 ## Contributing
 
