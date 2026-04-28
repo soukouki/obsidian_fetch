@@ -61,7 +61,7 @@ module ObsidianFetch
             puts "YAML syntax error in #{file_path}: #{e.message}"
             next
           end
-          (frontmatter&.[](:aliases) || []).each do |alias_name|
+          Array(frontmatter&.[](:aliases) || []).each do |alias_name|
             alias_name = Vault.normalize_note_name(alias_name)
             @notes[alias_name] ||= []
             @notes[alias_name] << file_path

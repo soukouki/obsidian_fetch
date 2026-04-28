@@ -30,8 +30,11 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  # Uncomment to register a new dependency of your gem
-  spec.add_dependency 'mcp', '~> 0.2.0'
+  spec.add_dependency 'mcp', '~> 0.14.0'
+
+  # For Streamable HTTP transport
+  spec.add_dependency 'rack', '>= 2.0'
+  spec.add_dependency 'puma', '>= 5.0'
 
   # For more information and examples about making a new gem, check out our
   # guide at: https://bundler.io/guides/creating_gem.html
