@@ -149,7 +149,7 @@ when 'streamable-http'
     max_threads 16
     min_threads 1
   end
-  server_obj.add_tcp_listener "127.0.0.1", port
+  server_obj.add_tcp_listener "0.0.0.0", port
 
   STDERR.puts "Streamable HTTP transport started on http://localhost:#{port}"
   STDERR.puts "Press Ctrl+C to stop"
