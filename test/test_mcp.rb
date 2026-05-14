@@ -31,11 +31,6 @@ class McpTest < Minitest::Test
     FileUtils.rm_rf(@test_vault) if @test_vault
   end
 
-  def test_tools_list
-    tools = @client.tools
-    assert tools.any?, 'ツールが見つかりませんでした'
-  end
-
   def test_read_hello_world
     read_tool = @client.tools.find { |t| t.name == 'read_tool' }
     refute_nil read_tool, 'read ツールが見つかりませんでした'
