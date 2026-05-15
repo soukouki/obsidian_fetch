@@ -1,3 +1,4 @@
+# !/usr/bin/env ruby
 # frozen_string_literal: true
 
 require 'mcp'
@@ -17,7 +18,7 @@ while i < ARGV.length
   arg = ARGV[i]
   case arg
   when '--help', '-h'
-    puts "Usage: obsidian_fetch [vault_path] [--transport {stdio|streamable-http}] [--port PORT]"
+    puts "Usage: obsidian_fetch [vault_path] [--transport {stdio|streamable-http}] [--port PORT}"
     puts ""
     puts "Options:"
     puts "  --transport {stdio|streamable-http}  Transport type (default: stdio)"
@@ -44,7 +45,7 @@ while i < ARGV.length
     i += 2 # Skip the next argument (transport type)
   when '--port'
     if i + 1 >= ARGV.length
-      STDERR.puts "Error: --port requires a numeric argument"
+      STDERR.puts "Error: --port requires an argument"
       exit 1
     end
     port_val = ARGV[i + 1]
@@ -101,7 +102,9 @@ class ReadTool < MCP::Tool
 
     # Vaultからノートを読み取る
     result = $vault.tool_read(name)
-    MCP::Tool::Response.new([{ type: "text", text: result }])
+    # エラーの場合には isError を true にする
+    is_error = result.start_with?('Note not found:')
+    MCP::Tool::Response.new([{ type: "text", text: result }], error: is_error)
   end
 end
 
@@ -121,7 +124,9 @@ class ListTool < MCP::Tool
 
     # Vaultからノートを検索
     result = $vault.tool_list(name)
-    MCP::Tool::Response.new([{ type: "text", text: result }])
+    # エラーの場合には isError を true にする
+    is_error = result.start_with?('Note not found:')
+    MCP::Tool::Response.new([{ type: "text", text: result }], error: is_error)
   end
 end
 
