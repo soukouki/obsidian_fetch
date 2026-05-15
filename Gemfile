@@ -2,6 +2,8 @@
 
 source "https://rubygems.org"
 
+eval_gemspec
+
 gem "irb"
 gem "rake", "~> 13.0"
 
