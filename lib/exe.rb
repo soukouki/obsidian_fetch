@@ -97,11 +97,11 @@ class ReadTool < MCP::Tool
 
   def self.call(name:)
     # 名前が文字列でない場合
-    return MCP::Tool::Response.new([{ type: "text", text: "Name must be a string" }]) unless name.is_a?(String)
+    return MCP::Tool::Response.new([{ type: "text", text: "Name must be a string" }], error: true) unless name.is_a?(String)
 
     # Vaultからノートを読み取る
     result = $vault.tool_read(name)
-    MCP::Tool::Response.new([{ type: "text", text: result }])
+    MCP::Tool::Response.new([{ type: "text", text: result.text }], error: result.error)
   end
 end
 
@@ -117,11 +117,11 @@ class ListTool < MCP::Tool
 
   def self.call(name:)
     # 名前が文字列でない場合
-    return MCP::Tool::Response.new([{ type: "text", text: "Name must be a string" }]) unless name.is_a?(String)
+    return MCP::Tool::Response.new([{ type: "text", text: "Name must be a string" }], error: true) unless name.is_a?(String)
 
     # Vaultからノートを検索
     result = $vault.tool_list(name)
-    MCP::Tool::Response.new([{ type: "text", text: result }])
+    MCP::Tool::Response.new([{ type: "text", text: result.text }], error: result.error)
   end
 end
 

@@ -58,6 +58,30 @@ class McpTest < Minitest::Test
     assert content.start_with?('Note not found:'), "エラーメッセージが期待どおりではありません: #{content}"
   end
 
+  def test_read_not_found_is_error
+    read_tool = @client.tools.find { |t| t.name == 'read_tool' }
+
+    response = @client.call_tool(
+      tool: read_tool,
+      arguments: { name: 'NonExistent' }
+    )
+
+    # isError が true であることを確認
+    assert response['result']['isError'], "isError が true ではありません: #{response['result']}"
+  end
+
+  def test_read_hello_is_not_error
+    read_tool = @client.tools.find { |t| t.name == 'read_tool' }
+
+    response = @client.call_tool(
+      tool: read_tool,
+      arguments: { name: 'Hello World' }
+    )
+
+    # isError が false または未設定であることを確認
+    refute response['result']['isError'], "isError が設定されています: #{response['result']}"
+  end
+
   def test_list_hello
     list_tool = @client.tools.find { |t| t.name == 'list_tool' }
     refute_nil list_tool, 'list ツールが見つかりませんでした'
@@ -83,6 +107,30 @@ class McpTest < Minitest::Test
 
     content = response['result']['content'].first['text']
     assert content.start_with?('Note not found:'), "エラーメッセージが期待どおりではありません: #{content}"
+  end
+
+  def test_list_not_found_is_error
+    list_tool = @client.tools.find { |t| t.name == 'list_tool' }
+
+    response = @client.call_tool(
+      tool: list_tool,
+      arguments: { name: 'NonExistent' }
+    )
+
+    # isError が true であることを確認
+    assert response['result']['isError'], "isError が true ではありません: #{response['result']}"
+  end
+
+  def test_list_hello_is_not_error
+    list_tool = @client.tools.find { |t| t.name == 'list_tool' }
+
+    response = @client.call_tool(
+      tool: list_tool,
+      arguments: { name: 'Hello' }
+    )
+
+    # isError が false または未設定であることを確認
+    refute response['result']['isError'], "isError が設定されています: #{response['result']}"
   end
 
   def test_backlink
