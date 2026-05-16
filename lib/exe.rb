@@ -1,4 +1,3 @@
-# !/usr/bin/env ruby
 # frozen_string_literal: true
 
 require 'mcp'
@@ -18,7 +17,7 @@ while i < ARGV.length
   arg = ARGV[i]
   case arg
   when '--help', '-h'
-    puts "Usage: obsidian_fetch [vault_path] [--transport {stdio|streamable-http}] [--port PORT}"
+    puts "Usage: obsidian_fetch [vault_path] [--transport {stdio|streamable-http}] [--port PORT]"
     puts ""
     puts "Options:"
     puts "  --transport {stdio|streamable-http}  Transport type (default: stdio)"
@@ -45,7 +44,7 @@ while i < ARGV.length
     i += 2 # Skip the next argument (transport type)
   when '--port'
     if i + 1 >= ARGV.length
-      STDERR.puts "Error: --port requires an argument"
+      STDERR.puts "Error: --port requires a numeric argument"
       exit 1
     end
     port_val = ARGV[i + 1]
@@ -98,13 +97,11 @@ class ReadTool < MCP::Tool
 
   def self.call(name:)
     # 名前が文字列でない場合
-    return MCP::Tool::Response.new([{ type: "text", text: "Name must be a string" }]) unless name.is_a?(String)
+    return MCP::Tool::Response.new([{ type: "text", text: "Name must be a string" }], error: true) unless name.is_a?(String)
 
     # Vaultからノートを読み取る
     result = $vault.tool_read(name)
-    # エラーの場合には isError を true にする
-    is_error = result.start_with?('Note not found:')
-    MCP::Tool::Response.new([{ type: "text", text: result }], error: is_error)
+    MCP::Tool::Response.new([{ type: "text", text: result.text }], error: result.error)
   end
 end
 
@@ -120,13 +117,11 @@ class ListTool < MCP::Tool
 
   def self.call(name:)
     # 名前が文字列でない場合
-    return MCP::Tool::Response.new([{ type: "text", text: "Name must be a string" }]) unless name.is_a?(String)
+    return MCP::Tool::Response.new([{ type: "text", text: "Name must be a string" }], error: true) unless name.is_a?(String)
 
     # Vaultからノートを検索
     result = $vault.tool_list(name)
-    # エラーの場合には isError を true にする
-    is_error = result.start_with?('Note not found:')
-    MCP::Tool::Response.new([{ type: "text", text: result }], error: is_error)
+    MCP::Tool::Response.new([{ type: "text", text: result.text }], error: result.error)
   end
 end
 
