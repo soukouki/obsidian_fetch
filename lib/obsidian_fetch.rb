@@ -150,30 +150,30 @@ module ObsidianFetch
           # もしも名前で見つからなければ、リンクにも存在しないか確認する
           link_pathes = @links_by_file_name[fixed_name]
           if link_pathes.nil?
-            return Result.new(note_not_found(name), error: true)
+            return Result.new(text: note_not_found(name), error: true)
           else
             # リンク先のノートが見つかった場合は、prefaceを追加する
             preface = <<~EOS
               Presumably a path was specified. The process was automatically renamed and processed.
             EOS
-            return Result.new(list_links(fixed_name, preface), error: true)
+            return Result.new(text: list_links(fixed_name, preface), error: true)
           end
         else
           # ノート名が見つかった場合は、prefaceを追加する
           preface = <<~EOS
             Presumably a path was specified. The process was automatically renamed and processed.
           EOS
-          return Result.new(open_file(fixed_name, file_pathes, preface))
+          return Result.new(text: open_file(fixed_name, file_pathes, preface))
         end
       end
 
       # 名前のノートが存在しない場合
       if file_pathes.nil?
-        return Result.new(note_not_found(name), error: true) if @links_by_file_name[name].nil?
-        return Result.new(list_links(name, preface), error: true)
+        return Result.new(text: note_not_found(name), error: true) if @links_by_file_name[name].nil?
+        return Result.new(text: list_links(name, preface), error: true)
       end
 
-      Result.new(open_file(name, file_pathes, preface))
+      Result.new(text: open_file(name, file_pathes, preface))
     end
 
     private def note_not_found name
@@ -216,7 +216,7 @@ module ObsidianFetch
     MAX_LIST_SIZE = 20
     def tool_list name
       name = Vault.normalize_note_name(name)
-      split_name = name.split(/[\s]+/)
+      split_name = name.split(/[\s  ]+/)
       # 空白文字で検索された場合は失敗した旨を返す
       # 仮に全ノートからランダムなMAX_LIST_SIZEを返してしまうと、LLMが誤って呼び出した場合に偽の関連性を持ってしまうため
       if split_name.empty?
@@ -230,11 +230,11 @@ module ObsidianFetch
       # 名前で検索したが見つからない場合
       if matched_notes.empty?
         has_found_link = @links_by_file_name[name] && !@links_by_file_name[name].empty?
-        return Result.new(<<~EOS, error: true) unless has_found_link
+        return Result.new(text: <<~EOS, error: true) unless has_found_link
           Note not found: #{name}
           Search again with a substring or a string with a different notation.
         EOS
-        return Result.new(<<~EOS, error: true)
+        return Result.new(text: <<~EOS, error: true)
           Note not found: #{name}
           However, I found other notes linked to this note.
           #{@links_by_file_name[name].shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
@@ -250,7 +250,7 @@ module ObsidianFetch
       list = matched_notes.keys.shuffle.map do |note_name|
         "- #{note_name}"
       end.join("\n")
-      Result.new(preface + list)
+      Result.new(text: preface + list)
     end
   end
 
