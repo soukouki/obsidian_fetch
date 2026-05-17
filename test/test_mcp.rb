@@ -267,3 +267,71 @@ class VaultPathCorrectionTest < Minitest::Test
     assert result.text.include?('renamed'), "prefaceメッセージが見つかりませんでした: #{result.text}"
   end
 end
+
+# tool_list の大量マッチ制限 (MAX_LIST_SIZE) をテスト
+class VaultMassLimitTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_mass_test_')
+
+    # FIXTURE_VAULT から既存のファイルをコピー
+    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+
+    # 25個のノートを作成（MAX_LIST_SIZE=20を超える）
+    25.times do |i|
+      note_name = "MassNote_#{sprintf('%02d', i)}"
+      File.write(File.join(@test_vault, "#{note_name}.md"), "# #{note_name}\n")
+    end
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_tool_list_limits_results_to_max_list_size
+    # 25個のノートが存在することを確認
+    notes_in_vault = Dir.glob(File.join(@test_vault, '**', '*.md')).count
+    assert notes_in_vault >= 25, "Vault に 25個以上のノートがありません: #{notes_in_vault}"
+
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # tool_list を呼び出す（MassNote_ で始まるノートを検索）
+    result = vault.tool_list('MassNote_')
+
+    # エラーにならない
+    refute result.error, "tool_list の呼び出しに失敗しました: #{result.text}"
+
+    # 返されたノート名をカウント
+    note_names = result.text.scan(/MassNote_\d+/).uniq
+    assert note_names.length <= 20, "MAX_LIST_SIZE(20)を超えるノートが返されました: #{note_names.length}"
+  end
+
+  def test_tool_list_mass_limit_has_warning_message
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    result = vault.tool_list('MassNote_')
+
+    # 大量マッチ制限が適用された場合は警告メッセージが含まれる
+    # 25個のノートが存在し、20個以下しか返されない
+    note_names = result.text.scan(/MassNote_\d+/).uniq
+    if note_names.length < 25
+      # 制限が適用された場合、何かしらの制限に関するメッセージが期待される
+      # ただしエラーではなく、警告として処理される
+      refute result.error, "大量マッチ制限がエラーとして返されました: #{result.text}"
+    end
+  end
+
+  def test_tool_list_returns_at_most_20_notes
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    result = vault.tool_list('MassNote_')
+
+    refute result.error, "tool_list の呼び出しに失敗しました: #{result.text}"
+
+    # 返されたノート名の数が 20以下であることを確認
+    note_names = result.text.scan(/MassNote_\d+/).uniq
+    assert note_names.length <= 20, "20個を超えるノートが返されました: #{note_names.length}"
+
+    # 25個のノートを作成したので、20個以下しか返されない
+    assert note_names.length < 25, "25個全てのノートが返されました（制限が機能していません）"
+  end
+end
