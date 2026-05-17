@@ -229,3 +229,32 @@ class VaultYamlErrorTest < Minitest::Test
     assert result.text.include?('Hello'), "Hello で始まるノートが見つかりませんでした"
   end
 end
+
+# tool_read のパス修正経路をテスト
+class VaultPathCorrectionTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_path_test_')
+    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_tool_read_with_slash_in_name_falls_back_to_basename
+    # パスを含む名前で読み取ると、basename で再試行され、ノートが読み込まれる
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # "some/path/Hello World" のようにパスを含む名前で読み取る
+    result = vault.tool_read('some/path/Hello World')
+
+    # エラーにならない
+    refute result.error, "パスを含む名前の読み込みに失敗しました: #{result.text}"
+
+    # "Hello World" ノートの内容が含まれる
+    assert result.text.include?('Hello World'), "Hello World ノートの内容が見つかりませんでした"
+
+    # prefaceメッセージが含まれる（パス修正のログ）
+    assert result.text.include?('renamed'), "prefaceメッセージが見つかりませんでした: #{result.text}"
+  end
+end
