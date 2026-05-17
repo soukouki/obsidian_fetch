@@ -376,6 +376,73 @@ class VaultDisplayNameLinkTest < Minitest::Test
   end
 end
 
+# `[display](path)` 形式のリンクをテスト
+class VaultDisplayPathLinkTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_displaypath_test_')
+    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+
+    # `[display](path)` 形式のリンクを含むノートを追加
+    File.write(
+      File.join(@test_vault, 'Has Display Path Link.md'),
+      "# Has Display Path Link\n\nThis note has a [Link to HW](Hello World) link.\n"
+    )
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_displaypath_link_is_collected
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # `[display](path)` の path 部分 (Hello World) が links_by_file_name に登録される
+    assert vault.links_by_file_name.key?('Hello World'), "links_by_file_name に 'Hello World' が登録されていません"
+  end
+
+  def test_displaypath_link_backlink_source
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # links_by_file_name['Hello World'] のバックリンクに 'Has Display Path Link' が含まれている
+    backlinks = vault.links_by_file_name['Hello World']
+    assert backlinks.any? { |p| p.include?('Has Display Path Link') }, "links_by_file_name['Hello World'] に 'Has Display Path Link' が含まれていません: #{backlinks}"
+  end
+
+  def test_displaypath_link_does_not_use_display_as_target
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # display 部分 (Link to HW) がリンク先として登録されない
+    refute vault.links_by_file_name.key?('Link to HW'), "display 'Link to HW' がリンク先として登録されてはいけません"
+  end
+
+  def test_displaypath_link_with_md_extension
+    # `[display](path.md)` 形式のリンクもテスト
+    File.write(
+      File.join(@test_vault, 'Has Display Path Link with MD.md'),
+      "# Has Display Path Link with MD\n\nThis note has a [Link to HW](Hello World.md) link.\n"
+    )
+
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # .md を除去して 'Hello World' がリンク先として登録される
+    assert vault.links_by_file_name.key?('Hello World'), "links_by_file_name に 'Hello World' が登録されていません"
+  end
+
+  def test_displaypath_link_external_url_excluded
+    # 外部リンクは除外されることをテスト
+    File.write(
+      File.join(@test_vault, 'Has External Link.md'),
+      "# Has External Link\n\nThis note has a [External Link](https://example.com) link.\n"
+    )
+
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # 外部リンクのパスが links_by_file_name に登録されない
+    refute vault.links_by_file_name.key?('example.com'), "外部リンク 'example.com' がリンク先として登録されてはいけません"
+    refute vault.links_by_file_name.key?('https'), "外部リンク 'https' がリンク先として登録されてはいけません"
+  end
+end
+
 # tool_list のバックリンクフォールバックをテスト
 class VaultBacklinkFallbackTest < Minitest::Test
   def setup
