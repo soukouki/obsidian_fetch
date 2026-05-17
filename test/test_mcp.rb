@@ -228,6 +228,15 @@ class VaultYamlErrorTest < Minitest::Test
     refute result.error, "リストの取得に失敗しました: #{result.text}"
     assert result.text.include?('Hello'), "Hello で始まるノートが見つかりませんでした"
   end
+
+  def test_tool_list_with_blank_string_returns_error
+    # 空文字列で tool_list を呼び出した場合、エラーが返されることを確認
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    result = vault.tool_list('')
+    assert result.error, "空文字列で検索してもエラーが返されませんでした: #{result.text}"
+    assert result.text.include?('blank') || result.text.include?('cannot be listed'), "エラーメッセージに期待する文言が含まれていません: #{result.text}"
+  end
 end
 
 # tool_read のパス修正経路をテスト
