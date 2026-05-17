@@ -522,6 +522,61 @@ class VaultBacklinkFallbackTest < Minitest::Test
   end
 end
 
+# `tool_read` のバックリンク表示をテスト
+class VaultToolReadBacklinkTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_backlink_display_test_')
+    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+
+    # リンク元となるノートを追加（Hello World を参照する）
+    File.write(
+      File.join(@test_vault, 'Refers to Hello.md'),
+      "# Refers to Hello\n\nThis note has a [[Hello World]] link.\n"
+    )
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_tool_read_shows_backlink_when_links_by_file_name_exists
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # 'Refers to Hello' が Hello World を参照しているので、
+    # @links_by_file_name['Hello World'] に 'Refers to Hello' が登録される
+    assert vault.links_by_file_name.key?('Hello World'), "links_by_file_name に 'Hello World' が登録されていません"
+
+    # Hello World ノートを tool_read で読み取る
+    result = vault.tool_read('Hello World')
+
+    # ノートが読み込まれていることを確認
+    refute result.error, "Hello World ノートの読み込みに失敗しました: #{result.text}"
+    assert result.text.include?('Hello World'), "Hello World ノートの内容が見つかりませんでした"
+
+    # バックリンクが表示されることを確認
+    assert result.text.include?('Refers to Hello'), "バックリンク 'Refers to Hello' が表示されませんでした: #{result.text}"
+  end
+
+  def test_tool_read_backlink_shows_linked_by_message
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    result = vault.tool_read('Hello World')
+
+    # バックリンクのセクションヘッダーが表示されていることを確認
+    assert result.text.include?('linked by') || result.text.include?('This note is linked'), "バックリンクのメッセージが表示されませんでした: #{result.text}"
+  end
+
+  def test_tool_read_backlink_lists_all_linking_notes
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    result = vault.tool_read('Hello World')
+
+    # バックリンクに複数のリンク元ノートが表示されていることを確認
+    assert result.text.include?('Refers to Hello'), "バックリンクに 'Refers to Hello' が表示されませんでした: #{result.text}"
+    assert result.text.include?('Links to HW'), "バックリンクに 'Links to HW' が表示されませんでした: #{result.text}"
+  end
+end
+
 # `[[Note#section]]` 形式のリンクをテスト（#アンカー処理）
 class VaultAnchorLinkTest < Minitest::Test
   def setup
