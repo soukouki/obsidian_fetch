@@ -336,6 +336,46 @@ class VaultMassLimitTest < Minitest::Test
   end
 end
 
+# [[link|displayname]] 形式のリンクをテスト
+class VaultDisplayNameLinkTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_displayname_test_')
+    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+
+    # [[link|displayname]] 形式のリンクを含むノートを追加
+    File.write(
+      File.join(@test_vault, 'Has DisplayName Link.md'),
+      "# Has DisplayName Link\n\nThis note has a [[Hello World|HW Note]] link.\n"
+    )
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_displayname_link_is_collected
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # [[link|displayname]] の link 部分 (Hello World) が links_by_file_name に登録される
+    assert vault.links_by_file_name.key?('Hello World'), "links_by_file_name に 'Hello World' が登録されていません"
+  end
+
+  def test_displayname_link_is_correct_target
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # links_by_file_name['Hello World'] のバックリンクに 'Has DisplayName Link' が含まれている
+    backlinks = vault.links_by_file_name['Hello World']
+    assert backlinks.any? { |p| p.include?('Has DisplayName Link') }, "links_by_file_name['Hello World'] に 'Has DisplayName Link' が含まれていません: #{backlinks}"
+  end
+
+  def test_displayname_link_does_not_use_displayname_as_target
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # displayname (HW Note) がリンク先として登録されない
+    refute vault.links_by_file_name.key?('HW Note'), "displayname 'HW Note' がリンク先として登録されてはいけません"
+  end
+end
+
 # tool_list のバックリンクフォールバックをテスト
 class VaultBacklinkFallbackTest < Minitest::Test
   def setup
