@@ -220,7 +220,7 @@ module ObsidianFetch
       # 空白文字で検索された場合は失敗した旨を返す
       # 仮に全ノートからランダムなMAX_LIST_SIZEを返してしまうと、LLMが誤って呼び出した場合に偽の関連性を持ってしまうため
       if split_name.empty?
-        return Result.new(<<~EOS, error: true)
+        return Result.new(text: <<~EOS, error: true)
           It cannot be listed in a blank string.
         EOS
       end
