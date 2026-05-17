@@ -1,9 +1,21 @@
 # frozen_string_literal: true
 
+require 'fileutils'
+
+# テスト実行前に古いカバレッジデータをクリア
+FileUtils.rm_f(File.join(__dir__, '..', 'coverage', '.resultset.json'))
+FileUtils.rm_f(File.join(__dir__, '..', 'coverage', '.resultset.json.lock'))
+
+require 'simplecov'
+SimpleCov.start do
+  command_name 'Unit Tests'
+end
 require 'minitest/autorun'
 require 'mcp'
 require 'tmpdir'
-require 'fileutils'
+
+# サーバーのコードを require してカバレッジ計測の対象にする
+require_relative '../lib/obsidian_fetch'
 
 # テスト設定
 PROJECT_ROOT = File.dirname(__dir__)
@@ -19,7 +31,14 @@ class McpTest < Minitest::Test
     # MCP サーバーを stdio transport で起動
     @stdio_transport = MCP::Client::Stdio.new(
       command: 'ruby',
-      args: ['-I', 'lib', 'exe/obsidian_fetch', @test_vault],
+      args: [
+        '-I', 'lib',
+        '-I', 'test',
+        '-I', 'vendor/bundle/ruby/3.3.0/gems/simplecov-0.22.0/lib',
+        '-r', 'simplecov_wrapper',
+        'exe/obsidian_fetch',
+        @test_vault
+      ],
       read_timeout: 10
     )
 
@@ -28,6 +47,7 @@ class McpTest < Minitest::Test
 
   def teardown
     @stdio_transport.close
+    sleep 1 # サーバープロセスの終了を待つ
     FileUtils.rm_rf(@test_vault) if @test_vault
   end
 

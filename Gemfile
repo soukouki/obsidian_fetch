@@ -11,4 +11,5 @@ gem "puma", ">= 5.0"
 
 group :development do
   gem "minitest"
+  gem "simplecov", require: false
 end
