@@ -335,3 +335,42 @@ class VaultMassLimitTest < Minitest::Test
     assert note_names.length < 25, "25個全てのノートが返されました（制限が機能していません）"
   end
 end
+
+# tool_list のバックリンクフォールバックをテスト
+class VaultBacklinkFallbackTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_backlink_test_')
+    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+
+    # リンク先が存在しないノートを追加
+    File.write(
+      File.join(@test_vault, 'Links to NonExistent.md'),
+      "# Links to NonExistent\n\nThis note links to [[Phantom Note]].\n"
+    )
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_tool_list_backlink_fallback
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # "Phantom Note" はノート名として存在しない（@notes に登録されない）
+    matched = vault.notes.key?('Phantom Note')
+    refute matched, "Phantom Note がノート名として登録されていました"
+
+    # だが @links_by_file_name には存在する（他のノートからリンクされている）
+    assert vault.links_by_file_name.key?('Phantom Note'), "links_by_file_name に Phantom Note が登録されていません"
+
+    # tool_list を呼び出す
+    result = vault.tool_list('Phantom Note')
+
+    # エラーは true である（ノートが見つからないため）
+    assert result.error, "エラーが返されませんでした: #{result.text}"
+
+    # バックリンクが表示されることを確認
+    assert result.text.include?('However, I found other notes linked to this note'), "バックリンクのメッセージが表示されませんでした: #{result.text}"
+    assert result.text.include?('Links to NonExistent'), "バックリンク先ノート名が表示されませんでした: #{result.text}"
+  end
+end
