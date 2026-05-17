@@ -167,3 +167,65 @@ class McpTest < Minitest::Test
     assert content.include?('Hello World'), "バックリンクが見つかりませんでした"
   end
 end
+
+# YAML構文エラーのハンドリングをテスト
+class VaultYamlErrorTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_yaml_test_')
+
+    # FIXTURE_VAULT から既存のファイルをコピー
+    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+
+    # 無効なfrontmatterを持つ.mdファイルを追加
+    # YAML構文エラー: エスケープされていない引用符
+    invalid_frontmatter_content = <<~MD
+      ---
+      title: "未完了の文字列
+      aliases:
+        - broken
+      ---
+      # Invalid YAML Note
+    MD
+    File.write(File.join(@test_vault, 'Invalid Frontmatter.md'), invalid_frontmatter_content)
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_vault_initializes_with_invalid_yaml_frontmatter
+    # 無効なfrontmatterが存在しても、Vault は初期化できることを確認
+    # Psych::SyntaxError が発生しても collect_notes は次のファイルに進む
+    vault = ObsidianFetch::Vault.new([@test_vault])
+    refute_nil vault, 'Vault が初期化されませんでした'
+  end
+
+  def test_valid_notes_loaded_despite_invalid_frontmatter
+    # 無効なfrontmatterが存在しても、他のノートが読み込まれることを確認
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # Hello World ノートが読み込まれていることを確認
+    result = vault.tool_read('Hello World')
+    refute result.error, "Hello World ノートの読み込みに失敗しました: #{result.text}"
+    assert result.text.include?('Hello World'), "Hello World ノートの内容が見つかりませんでした"
+  end
+
+  def test_invalid_yaml_note_is_still_loaded
+    # 無効なfrontmatterのノートも読み込まれていることを確認
+    # (frontmatter解析はスキップされるが、ファイル自体は読み込まれる)
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    result = vault.tool_read('Invalid Frontmatter')
+    refute result.error, "Invalid Frontmatter ノートの読み込みに失敗しました: #{result.text}"
+    assert result.text.include?('Invalid YAML Note'), "Invalid Frontmatter ノートの内容が見つかりませんでした"
+  end
+
+  def test_list_works_with_invalid_frontmatter
+    # 無効なfrontmatterが存在しても、list が機能することを確認
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    result = vault.tool_list('Hello')
+    refute result.error, "リストの取得に失敗しました: #{result.text}"
+    assert result.text.include?('Hello'), "Hello で始まるノートが見つかりませんでした"
+  end
+end
