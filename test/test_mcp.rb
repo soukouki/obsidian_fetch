@@ -336,6 +336,46 @@ class VaultMassLimitTest < Minitest::Test
   end
 end
 
+# `[[Note.md]]` 形式の `.md` 拡張子付きリンクをテスト
+class VaultMdExtensionLinkTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_md_extension_test_')
+    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+
+    # [[Note.md]] 形式のリンクを含むノートを追加
+    File.write(
+      File.join(@test_vault, 'Has MD Link.md'),
+      "# Has MD Link\n\nThis note has a [[Hello World.md]] link.\n"
+    )
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_md_extension_link_is_stripped
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # [[Hello World.md]] の .md が除去され、'Hello World' が links_by_file_name に登録される
+    assert vault.links_by_file_name.key?('Hello World'), "links_by_file_name に 'Hello World' が登録されていません"
+  end
+
+  def test_md_extension_link_backlink_correct
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # links_by_file_name['Hello World'] のバックリンクに 'Has MD Link' が含まれている
+    backlinks = vault.links_by_file_name['Hello World']
+    assert backlinks.any? { |p| p.include?('Has MD Link') }, "links_by_file_name['Hello World'] に 'Has MD Link' が含まれていません: #{backlinks}"
+  end
+
+  def test_md_extension_link_does_not_register_with_extension
+    vault = ObsidianFetch::Vault.new([@test_vault])
+
+    # .md 拡張子付きで登録されない
+    refute vault.links_by_file_name.key?('Hello World.md'), "links_by_file_name に 'Hello World.md' が登録されてはいけません"
+  end
+end
+
 # [[link|displayname]] 形式のリンクをテスト
 class VaultDisplayNameLinkTest < Minitest::Test
   def setup
