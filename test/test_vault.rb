@@ -268,3 +268,67 @@ class VaultToolReadBacklinkTest < Minitest::Test
     assert result.text.include?('Links to HW'), '複数のバックリンクが表示されていない'
   end
 end
+
+# tool_read のフォールバック処理をテスト
+class VaultToolReadNotExistsTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_notexists_test_')
+    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_tool_read_not_exists_no_backlink
+    vault = ObsidianFetch::Vault.new([@test_vault])
+    result = vault.tool_read('NonExistent Note')
+
+    assert result.error, 'エラーが返されていない'
+    assert result.text.include?('Note not found:'), 'ノートが見つからないメッセージが表示されていない'
+  end
+
+  def test_tool_read_not_exists_with_backlink
+    # リンク先が存在しないノートを追加
+    File.write(File.join(@test_vault, 'Links to Phantom.md'), "# Links to Phantom\n\nThis note links to [[Phantom Note]].\n")
+
+    vault = ObsidianFetch::Vault.new([@test_vault])
+    result = vault.tool_read('Phantom Note')
+
+    assert result.error, 'エラーが返されていない'
+    assert result.text.include?('However, I found other notes linked to this note'), 'バックリンクのメッセージが表示されていない'
+    assert result.text.include?('Links to Phantom'), 'バックリンク先ノート名が表示されていない'
+  end
+end
+
+# tool_read のパス修正後のフォールバックをテスト
+class VaultPathCorrectionFallbackTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_path_correction_test_')
+    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_tool_read_path_correction_not_found_no_backlink
+    vault = ObsidianFetch::Vault.new([@test_vault])
+    result = vault.tool_read('some/path/NonExistent')
+
+    assert result.error, 'エラーが返されていない'
+    assert result.text.include?('Note not found:'), 'ノートが見つからないメッセージが表示されていない'
+  end
+
+  def test_tool_read_path_correction_found_in_links
+    # リンク先が存在しないノートを追加
+    File.write(File.join(@test_vault, 'Links to Phantom.md'), "# Links to Phantom\n\nThis note links to [[Phantom Note]].\n")
+
+    vault = ObsidianFetch::Vault.new([@test_vault])
+    result = vault.tool_read('some/path/Phantom Note')
+
+    assert result.error, 'エラーが返されていない'
+    assert result.text.include?('However, I found other notes linked to this note'), 'バックリンクのメッセージが表示されていない'
+    assert result.text.include?('Links to Phantom'), 'バックリンク先ノート名が表示されていない'
+  end
+end
