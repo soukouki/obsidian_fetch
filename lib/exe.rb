@@ -78,14 +78,13 @@ vault_paths.each do |path|
   end
 end
 
-# Obsidian Vaultの初期化
-$vault = ObsidianFetch::Vault.new(vault_paths)
-STDERR.puts "Found #{$vault.notes.size} notes"
-STDERR.puts "Found #{$vault.links_by_file_name.size} links and #{$vault.links_by_file_path.size} files linked by notes"
+$manager = ObsidianFetch::VaultManager.new(vault_paths)
+STDERR.puts "Found #{$manager.vault.notes.size} notes"
+STDERR.puts "Found #{$manager.vault.links_by_file_name.size} links and #{$manager.vault.links_by_file_path.size} files linked by notes"
 STDERR.puts "Transport type: #{transport_type}"
 STDERR.puts "Port: #{port}" if transport_type == 'streamable-http'
 
-# readツールの定義
+# MCPツール定義
 class ReadTool < MCP::Tool
   description "Read a note from Obsidian vault. If multiple notes with the same name are found, all will be shown."
   input_schema(
@@ -94,18 +93,13 @@ class ReadTool < MCP::Tool
     },
     required: ["name"]
   )
-
   def self.call(name:)
-    # 名前が文字列でない場合
     return MCP::Tool::Response.new([{ type: "text", text: "Name must be a string" }], error: true) unless name.is_a?(String)
-
-    # Vaultからノートを読み取る
-    result = $vault.tool_read(name)
+    result = ObsidianFetch.read_note($manager.vault, name)
     MCP::Tool::Response.new([{ type: "text", text: result.text }], error: result.error)
   end
 end
 
-# listツールの定義
 class ListTool < MCP::Tool
   description "Search for files with matching names partially."
   input_schema(
@@ -116,11 +110,8 @@ class ListTool < MCP::Tool
   )
 
   def self.call(name:)
-    # 名前が文字列でない場合
     return MCP::Tool::Response.new([{ type: "text", text: "Name must be a string" }], error: true) unless name.is_a?(String)
-
-    # Vaultからノートを検索
-    result = $vault.tool_list(name)
+    result = ObsidianFetch.list_notes($manager.vault, name)
     MCP::Tool::Response.new([{ type: "text", text: result.text }], error: result.error)
   end
 end
@@ -128,7 +119,7 @@ end
 # MCPサーバーの初期化
 server = MCP::Server.new(
   name: "obsidian-fetch",
-  version: "0.1.0",
+  version: ObsidianFetch::VERSION,
   tools: [ReadTool, ListTool],
 )
 
@@ -137,28 +128,19 @@ case transport_type
 when 'streamable-http'
   require 'puma'
   require 'rack'
-
-  # Streamable HTTP トランスポートを使用してサーバーを起動
   transport = MCP::Server::Transports::StreamableHTTPTransport.new(server, stateless: true)
-
-  # PumaでRack appとして起動
   $stdout.sync = true
   $stderr.sync = true
-
   server_obj = Puma::Server.new(transport) do
     max_threads 16
     min_threads 1
   end
   server_obj.add_tcp_listener "0.0.0.0", port
-
   STDERR.puts "Streamable HTTP transport started on http://localhost:#{port}"
   STDERR.puts "Press Ctrl+C to stop"
-
-  # サーバーを起動してメインプロセスをブロックする
   server_thread = server_obj.run
   server_thread.join
 when 'stdio'
-  # Stdioトランスポートを使用してサーバーを起動
   transport = MCP::Server::Transports::StdioTransport.new(server)
   transport.open
 else

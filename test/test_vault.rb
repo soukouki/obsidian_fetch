@@ -6,7 +6,7 @@ require_relative 'shared_setup'
 class VaultYamlErrorTest < Minitest::Test
   def setup
     @test_vault = Dir.mktmpdir('obsidian_yaml_test_')
-    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+    copy_fixture_vault(@test_vault)
 
     # 無効な frontmatter を持つ.md ファイルを追加
     File.write(File.join(@test_vault, 'Invalid Frontmatter.md'), <<~MD)
@@ -24,23 +24,23 @@ class VaultYamlErrorTest < Minitest::Test
   end
 
   def test_vault_handles_invalid_yaml_gracefully
-    vault = ObsidianFetch::Vault.new([@test_vault])
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
 
     # 無効な frontmatter が存在しても Vault が初期化される
-    refute_nil vault
+    refute_nil vault.vault
 
     # 他のノートが正常に読み込まれる
-    result = vault.tool_read('Hello World')
+    result = ObsidianFetch.read_note(vault.vault, 'Hello World')
     refute result.error
     assert result.text.include?('Hello World')
 
     # 無効な frontmatter のノートも読み込まれる（frontmatter はスキップされる）
-    result = vault.tool_read('Invalid Frontmatter')
+    result = ObsidianFetch.read_note(vault.vault, 'Invalid Frontmatter')
     refute result.error
     assert result.text.include?('Invalid YAML Note')
 
     # list も機能する
-    result = vault.tool_list('Hello')
+    result = ObsidianFetch.list_notes(vault.vault, 'Hello')
     refute result.error
     assert result.text.include?('Hello')
   end
@@ -50,7 +50,7 @@ end
 class VaultBlankInputTest < Minitest::Test
   def setup
     @test_vault = Dir.mktmpdir('obsidian_blank_input_test_')
-    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+    copy_fixture_vault(@test_vault)
   end
 
   def teardown
@@ -58,28 +58,28 @@ class VaultBlankInputTest < Minitest::Test
   end
 
   def test_tool_list_with_blank_string_returns_error
-    vault = ObsidianFetch::Vault.new([@test_vault])
-    result = vault.tool_list('')
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, '')
 
     assert result.error
     assert result.text.include?('blank') || result.text.include?('cannot be listed')
   end
 end
 
-# tool_read のパス修正経路をテスト
+# read_note のパス修正経路をテスト
 class VaultPathCorrectionTest < Minitest::Test
   def setup
     @test_vault = Dir.mktmpdir('obsidian_path_test_')
-    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+    copy_fixture_vault(@test_vault)
   end
 
   def teardown
     FileUtils.rm_rf(@test_vault) if @test_vault
   end
 
-  def test_tool_read_falls_back_to_basename_when_path_provided
-    vault = ObsidianFetch::Vault.new([@test_vault])
-    result = vault.tool_read('some/path/Hello World')
+  def test_read_note_falls_back_to_basename_when_path_provided
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'some/path/Hello World')
 
     refute result.error
     assert result.text.include?('Hello World')
@@ -87,11 +87,11 @@ class VaultPathCorrectionTest < Minitest::Test
   end
 end
 
-# tool_list の大量マッチ制限 (MAX_LIST_SIZE) をテスト
+# list_notes の大量マッチ制限 (MAX_LIST_SIZE) をテスト
 class VaultMassLimitTest < Minitest::Test
   def setup
     @test_vault = Dir.mktmpdir('obsidian_mass_test_')
-    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+    copy_fixture_vault(@test_vault)
 
     # 25 個のノートを作成（MAX_LIST_SIZE=20 を超える）
     25.times do |i|
@@ -104,13 +104,13 @@ class VaultMassLimitTest < Minitest::Test
     FileUtils.rm_rf(@test_vault) if @test_vault
   end
 
-  def test_tool_list_limits_results_to_max_list_size
+  def test_list_notes_limits_results_to_max_list_size
     # 25 個のノートが存在することを確認
     notes_in_vault = Dir.glob(File.join(@test_vault, '**', '*.md')).count
     assert notes_in_vault >= 25
 
-    vault = ObsidianFetch::Vault.new([@test_vault])
-    result = vault.tool_list('MassNote_')
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'MassNote_')
 
     refute result.error
 
@@ -125,7 +125,7 @@ end
 class VaultLinkFormatTest < Minitest::Test
   def setup
     @test_vault = Dir.mktmpdir('obsidian_link_test_')
-    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+    copy_fixture_vault(@test_vault)
 
     # 様々なリンク形式を含むノートを追加
     File.write(File.join(@test_vault, 'Has MD Link.md'), "# Has MD Link\n\nThis note has a [[Hello World.md]] link.\n")
@@ -141,32 +141,32 @@ class VaultLinkFormatTest < Minitest::Test
   end
 
   def test_md_extension_link_is_stripped
-    vault = ObsidianFetch::Vault.new([@test_vault])
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
 
-    assert vault.links_by_file_name.key?('Hello World'), "'.md' が除去されてリンク先が登録されていない"
-    refute vault.links_by_file_name.key?('Hello World.md'), "'.md' 付きで登録されてはいけない"
+    assert vault.vault.links_by_file_name.key?('Hello World'), "'.md' が除去されてリンク先が登録されていない"
+    refute vault.vault.links_by_file_name.key?('Hello World.md'), "'.md' 付きで登録されてはいけない"
 
-    backlinks = vault.links_by_file_name['Hello World']
+    backlinks = vault.vault.links_by_file_name['Hello World']
     assert backlinks.any? { |p| p.include?('Has MD Link') }
   end
 
   def test_displayname_link_uses_link_part_not_display
-    vault = ObsidianFetch::Vault.new([@test_vault])
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
 
-    assert vault.links_by_file_name.key?('Hello World'), 'リンク部分 Hello World が登録されていない'
-    refute vault.links_by_file_name.key?('HW Note'), '表示名 HW Note が登録されてはいけない'
+    assert vault.vault.links_by_file_name.key?('Hello World'), 'リンク部分 Hello World が登録されていない'
+    refute vault.vault.links_by_file_name.key?('HW Note'), '表示名 HW Note が登録されてはいけない'
 
-    backlinks = vault.links_by_file_name['Hello World']
+    backlinks = vault.vault.links_by_file_name['Hello World']
     assert backlinks.any? { |p| p.include?('Has DisplayName Link') }
   end
 
   def test_displaypath_link_uses_path_not_display
-    vault = ObsidianFetch::Vault.new([@test_vault])
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
 
-    assert vault.links_by_file_name.key?('Hello World'), 'パス部分 Hello World が登録されていない'
-    refute vault.links_by_file_name.key?('Link to HW'), '表示名 Link to HW が登録されてはいけない'
+    assert vault.vault.links_by_file_name.key?('Hello World'), 'パス部分 Hello World が登録されていない'
+    refute vault.vault.links_by_file_name.key?('Link to HW'), '表示名 Link to HW が登録されてはいけない'
 
-    backlinks = vault.links_by_file_name['Hello World']
+    backlinks = vault.vault.links_by_file_name['Hello World']
     assert backlinks.any? { |p| p.include?('Has Display Path Link') }
   end
 
@@ -177,40 +177,40 @@ class VaultLinkFormatTest < Minitest::Test
       "# Has Display Path Link with MD\n\nThis note has a [Link to HW](Hello World.md) link.\n"
     )
 
-    vault = ObsidianFetch::Vault.new([@test_vault])
-    assert vault.links_by_file_name.key?('Hello World'), "'.md' が除去されてリンク先が登録されていない"
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    assert vault.vault.links_by_file_name.key?('Hello World'), "'.md' が除去されてリンク先が登録されていない"
   end
 
   def test_external_url_excluded
-    vault = ObsidianFetch::Vault.new([@test_vault])
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
 
-    refute vault.links_by_file_name.key?('example.com'), '外部リンクが登録されてはいけない'
-    refute vault.links_by_file_name.key?('https'), '外部リンクのスキームが登録されてはいけない'
+    refute vault.vault.links_by_file_name.key?('example.com'), '外部リンクが登録されてはいけない'
+    refute vault.vault.links_by_file_name.key?('https'), '外部リンクのスキームが登録されてはいけない'
   end
 
   def test_anchor_link_is_stripped
-    vault = ObsidianFetch::Vault.new([@test_vault])
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
 
-    assert vault.links_by_file_name.key?('Hello World'), '#アンカーが除去されてリンク先が登録されていない'
-    refute vault.links_by_file_name.key?('Hello World#Introduction'), 'アンカー付きで登録されてはいけない'
+    assert vault.vault.links_by_file_name.key?('Hello World'), '#アンカーが除去されてリンク先が登録されていない'
+    refute vault.vault.links_by_file_name.key?('Hello World#Introduction'), 'アンカー付きで登録されてはいけない'
 
-    backlinks = vault.links_by_file_name['Hello World']
+    backlinks = vault.vault.links_by_file_name['Hello World']
     assert backlinks.any? { |p| p.include?('Has Anchor Link') }
   end
 
   def test_block_id_link_is_stripped
     # ^block_id 形式のリンクもテスト
-    vault = ObsidianFetch::Vault.new([@test_vault])
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
 
-    assert vault.links_by_file_name.key?('Hello World'), '^blockid が除去されてリンク先が登録されていない'
+    assert vault.vault.links_by_file_name.key?('Hello World'), '^blockid が除去されてリンク先が登録されていない'
   end
 end
 
-# tool_list のバックリンクフォールバックをテスト
+# list_notes のバックリンクフォールバックをテスト
 class VaultBacklinkFallbackTest < Minitest::Test
   def setup
     @test_vault = Dir.mktmpdir('obsidian_backlink_test_')
-    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+    copy_fixture_vault(@test_vault)
 
     # リンク先が存在しないノートを追加
     File.write(File.join(@test_vault, 'Links to NonExistent.md'), "# Links to NonExistent\n\nThis note links to [[Phantom Note]].\n")
@@ -220,15 +220,15 @@ class VaultBacklinkFallbackTest < Minitest::Test
     FileUtils.rm_rf(@test_vault) if @test_vault
   end
 
-  def test_tool_list_backlink_fallback
-    vault = ObsidianFetch::Vault.new([@test_vault])
+  def test_list_notes_backlink_fallback
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
 
     # "Phantom Note" はノート名として存在しない
-    refute vault.notes.key?('Phantom Note'), 'Phantom Note がノート名として登録されてはいけない'
+    refute vault.vault.notes.key?('Phantom Note'), 'Phantom Note がノート名として登録されてはいけない'
     # だが @links_by_file_name には存在する
-    assert vault.links_by_file_name.key?('Phantom Note'), 'links_by_file_name に Phantom Note が登録されていない'
+    assert vault.vault.links_by_file_name.key?('Phantom Note'), 'links_by_file_name に Phantom Note が登録されていない'
 
-    result = vault.tool_list('Phantom Note')
+    result = ObsidianFetch.list_notes(vault.vault, 'Phantom Note')
 
     assert result.error, 'エラーが返されていない'
     assert result.text.include?('However, I found other notes linked to this note'), 'バックリンクのメッセージが表示されていない'
@@ -236,11 +236,11 @@ class VaultBacklinkFallbackTest < Minitest::Test
   end
 end
 
-# `tool_read` のバックリンク表示をテスト
-class VaultToolReadBacklinkTest < Minitest::Test
+# read_note のバックリンク表示をテスト
+class VaultReadBacklinkTest < Minitest::Test
   def setup
     @test_vault = Dir.mktmpdir('obsidian_backlink_display_test_')
-    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+    copy_fixture_vault(@test_vault)
 
     # リンク元となるノートを追加（Hello World を参照する）
     File.write(File.join(@test_vault, 'Refers to Hello.md'), "# Refers to Hello\n\nThis note has a [[Hello World]] link.\n")
@@ -250,12 +250,12 @@ class VaultToolReadBacklinkTest < Minitest::Test
     FileUtils.rm_rf(@test_vault) if @test_vault
   end
 
-  def test_tool_read_shows_backlink
-    vault = ObsidianFetch::Vault.new([@test_vault])
+  def test_read_note_shows_backlink
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
 
-    assert vault.links_by_file_name.key?('Hello World'), 'links_by_file_name に Hello World が登録されていない'
+    assert vault.vault.links_by_file_name.key?('Hello World'), 'links_by_file_name に Hello World が登録されていない'
 
-    result = vault.tool_read('Hello World')
+    result = ObsidianFetch.read_note(vault.vault, 'Hello World')
 
     refute result.error
     assert result.text.include?('Hello World')
@@ -269,31 +269,31 @@ class VaultToolReadBacklinkTest < Minitest::Test
   end
 end
 
-# tool_read のフォールバック処理をテスト
-class VaultToolReadNotExistsTest < Minitest::Test
+# read_note のフォールバック処理をテスト
+class VaultReadNotExistsTest < Minitest::Test
   def setup
     @test_vault = Dir.mktmpdir('obsidian_notexists_test_')
-    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+    copy_fixture_vault(@test_vault)
   end
 
   def teardown
     FileUtils.rm_rf(@test_vault) if @test_vault
   end
 
-  def test_tool_read_not_exists_no_backlink
-    vault = ObsidianFetch::Vault.new([@test_vault])
-    result = vault.tool_read('NonExistent Note')
+  def test_read_note_not_exists_no_backlink
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'NonExistent Note')
 
     assert result.error, 'エラーが返されていない'
     assert result.text.include?('Note not found:'), 'ノートが見つからないメッセージが表示されていない'
   end
 
-  def test_tool_read_not_exists_with_backlink
+  def test_read_note_not_exists_with_backlink
     # リンク先が存在しないノートを追加
     File.write(File.join(@test_vault, 'Links to Phantom.md'), "# Links to Phantom\n\nThis note links to [[Phantom Note]].\n")
 
-    vault = ObsidianFetch::Vault.new([@test_vault])
-    result = vault.tool_read('Phantom Note')
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'Phantom Note')
 
     assert result.error, 'エラーが返されていない'
     assert result.text.include?('However, I found other notes linked to this note'), 'バックリンクのメッセージが表示されていない'
@@ -301,31 +301,31 @@ class VaultToolReadNotExistsTest < Minitest::Test
   end
 end
 
-# tool_read のパス修正後のフォールバックをテスト
+# read_note のパス修正後のフォールバックをテスト
 class VaultPathCorrectionFallbackTest < Minitest::Test
   def setup
     @test_vault = Dir.mktmpdir('obsidian_path_correction_test_')
-    FileUtils.cp_r(FIXTURE_VAULT, @test_vault)
+    copy_fixture_vault(@test_vault)
   end
 
   def teardown
     FileUtils.rm_rf(@test_vault) if @test_vault
   end
 
-  def test_tool_read_path_correction_not_found_no_backlink
-    vault = ObsidianFetch::Vault.new([@test_vault])
-    result = vault.tool_read('some/path/NonExistent')
+  def test_read_note_path_correction_not_found_no_backlink
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'some/path/NonExistent')
 
     assert result.error, 'エラーが返されていない'
     assert result.text.include?('Note not found:'), 'ノートが見つからないメッセージが表示されていない'
   end
 
-  def test_tool_read_path_correction_found_in_links
+  def test_read_note_path_correction_found_in_links
     # リンク先が存在しないノートを追加
     File.write(File.join(@test_vault, 'Links to Phantom.md'), "# Links to Phantom\n\nThis note links to [[Phantom Note]].\n")
 
-    vault = ObsidianFetch::Vault.new([@test_vault])
-    result = vault.tool_read('some/path/Phantom Note')
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'some/path/Phantom Note')
 
     assert result.error, 'エラーが返されていない'
     assert result.text.include?('However, I found other notes linked to this note'), 'バックリンクのメッセージが表示されていない'
