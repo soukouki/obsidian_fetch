@@ -24,25 +24,31 @@ class VaultYamlErrorTest < Minitest::Test
   end
 
   def test_vault_handles_invalid_yaml_gracefully
-    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    real_stdout = $stdout
+    $stdout = StringIO.new
+    begin
+      vault = ObsidianFetch::VaultManager.new([@test_vault])
 
-    # 無効な frontmatter が存在しても Vault が初期化される
-    refute_nil vault.vault
+      # 無効な frontmatter が存在しても Vault が初期化される
+      refute_nil vault.vault
 
-    # 他のノートが正常に読み込まれる
-    result = ObsidianFetch.read_note(vault.vault, 'Hello World')
-    refute result.error
-    assert result.text.include?('Hello World')
+      # 他のノートが正常に読み込まれる
+      result = ObsidianFetch.read_note(vault.vault, 'Hello World')
+      refute result.error
+      assert result.text.include?('Hello World')
 
-    # 無効な frontmatter のノートも読み込まれる（frontmatter はスキップされる）
-    result = ObsidianFetch.read_note(vault.vault, 'Invalid Frontmatter')
-    refute result.error
-    assert result.text.include?('Invalid YAML Note')
+      # 無効な frontmatter のノートも読み込まれる（frontmatter はスキップされる）
+      result = ObsidianFetch.read_note(vault.vault, 'Invalid Frontmatter')
+      refute result.error
+      assert result.text.include?('Invalid YAML Note')
 
-    # list も機能する
-    result = ObsidianFetch.list_notes(vault.vault, 'Hello')
-    refute result.error
-    assert result.text.include?('Hello')
+      # list も機能する
+      result = ObsidianFetch.list_notes(vault.vault, 'Hello')
+      refute result.error
+      assert result.text.include?('Hello')
+    ensure
+      $stdout = real_stdout
+    end
   end
 end
 
