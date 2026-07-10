@@ -67,7 +67,9 @@ class VaultManagerTest < Minitest::Test
     assert vault.links_by_file_name.key?('Hello World')
 
     # Links to HW のリンク先を変更
-    File.write(File.join(@test_vault, 'Links to HW.md'), "# Links to HW\n\nThis note links to [[NonExistent]].\n")
+    File.write(File.join(@test_vault, 'Links to HW.md'), "# Links to HW\n\nThis note links to [[NonExistent]]. Some extra text to make the file size different.\n")
+    # ↑ フレーキー対策: 元のファイル(51バイト)と書き換え後のファイルでバイト数が異なるようにする。
+    # mtimeの精度が秒単位であるため、同じ秒内で変更した場合にサイズ差がないと変更が検知されず再スキャンされない。
 
     # Hello Worldへのリンクがなくなる
     vault = @manager.vault
