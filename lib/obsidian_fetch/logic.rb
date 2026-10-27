@@ -35,7 +35,7 @@ module ObsidianFetch
       file_pathes = vault.notes[fixed_name]
       if file_pathes.nil?
         # 完全一致がない場合のみ、大文字小文字の差異を許容した検索をする
-        candidates = fuzzy_candidates(vault, fixed_name)
+        candidates = case_variant_candidates(vault, fixed_name)
         return fuzzy_match_response(vault, fixed_name, candidates, PATH_CORRECTION_PREFACE) unless candidates.empty?
 
         # もしも名前で見つからなければ、リンクにも存在しないか確認する
@@ -48,21 +48,21 @@ module ObsidianFetch
         end
       else
         # ノート名が見つかった場合は、prefaceを追加する
-        return Result.new(text: open_file(fixed_name, file_pathes, PATH_CORRECTION_PREFACE, vault))
+        return Result.new(text: PATH_CORRECTION_PREFACE + case_variant_suggestion(vault, fixed_name) + open_file(fixed_name, file_pathes, "", vault))
       end
     end
 
     # 名前のノートが存在しない場合
     if file_pathes.nil?
       # 完全一致がない場合のみ、大文字小文字の差異を許容した検索をする
-      candidates = fuzzy_candidates(vault, name)
+      candidates = case_variant_candidates(vault, name)
       return fuzzy_match_response(vault, name, candidates, preface) unless candidates.empty?
 
       return Result.new(text: note_not_found(name), error: true) if vault.links_by_file_name[name].nil?
       return Result.new(text: list_links(name, preface, vault), error: true)
     end
 
-    Result.new(text: open_file(name, file_pathes, preface, vault))
+    Result.new(text: case_variant_suggestion(vault, name) + open_file(name, file_pathes, preface, vault))
   end
 
   def self.list_notes(vault, name, limit: MAX_LIST_SIZE)
@@ -173,9 +173,22 @@ module ObsidianFetch
     EOS
   end
 
-  # 完全一致がない場合に、大文字小文字の差異だけを許容する候補を名前順で返す
-  def self.fuzzy_candidates(vault, target)
-    vault.notes.keys.select { |note_name| note_name.downcase == target.downcase }.sort
+  # 完全一致を除いた、大文字小文字の差異だけのキーを名前順で返す
+  def self.case_variant_candidates(vault, target)
+    vault.notes.keys.reject { |note_name| note_name == target }.select { |note_name| note_name.downcase == target.downcase }.sort
+  end
+
+  # 完全一致を読むときに、揺らぎマッチしたノート名のサジェストを組み立てる
+  def self.case_variant_suggestion(vault, target)
+    candidates = case_variant_candidates(vault, target)
+    return "" if candidates.empty?
+
+    if candidates.size == 1
+      "There is also a note with the same name in different capitalization:\n- #{candidates.first}\n\n"
+    else
+      "There are also notes with the same name in different capitalization:\n" +
+        candidates.map { |note_name| "- #{note_name}" }.join("\n") + "\n\n"
+    end
   end
 
   # 揺らぎマッチの応答を組み立てる
