@@ -125,6 +125,40 @@ class VaultMassLimitTest < Minitest::Test
     assert note_names.length < 25, '25 個全てのノートが返された（制限が機能していない）'
     refute result.error, '大量マッチ制限がエラーとして返された'
   end
+
+  def test_list_notes_honors_the_given_limit
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'MassNote_', limit: 10)
+
+    refute result.error
+    note_names = result.text.scan(/MassNote_\d+/).uniq
+    assert_equal 10, note_names.length, "limit(10) と異なる件数が返された: #{note_names.length}"
+  end
+
+  def test_list_notes_returns_all_matches_when_limit_is_greater_than_matches
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'MassNote_', limit: 30)
+
+    refute result.error
+    note_names = result.text.scan(/MassNote_\d+/).uniq
+    assert_equal 25, note_names.length, "マッチした 25 件全てが返されなかった: #{note_names.length}"
+  end
+
+  def test_list_notes_reports_the_total_number_of_matches
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'MassNote_', limit: 10)
+
+    assert result.text.include?('25 notes matched'), "マッチ総件数が応答に含まれていない: #{result.text}"
+    assert result.text.include?('I will show you 10 of them.'), "切られていることが応答から読み取れない: #{result.text}"
+  end
+
+  def test_list_notes_rejects_a_limit_greater_than_max_list_limit
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'MassNote_', limit: 201)
+
+    assert result.error, '上限を超える limit がエラーとして返されなかった'
+    assert result.text.include?('between 1 and 200'), "エラーメッセージが期待どおりではありません: #{result.text}"
+  end
 end
 
 # リンク形式のテストをまとめてテスト
