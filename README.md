@@ -48,7 +48,7 @@ obsidian_fetch /path/to/your/vault --transport streamable-http --port 3000
 ## Tools
 
 - **read**: Read a note from the Obsidian vault. If multiple notes with the same name are found, all will be shown.
-- **list**: Search for files with matching names partially. It returns 20 notes by default. The `limit` argument accepts an integer between 1 and 200, and the response states how many notes matched in total.
+- **list**: Search for notes whose name or containing folder names partially match. It returns 20 notes by default. The `limit` argument accepts an integer between 1 and 200, and the response states how many notes matched in total.
 
 ## Contributing
 

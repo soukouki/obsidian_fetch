@@ -161,6 +161,103 @@ class VaultMassLimitTest < Minitest::Test
   end
 end
 
+# list_notes のフォルダ名検索をテスト
+class VaultFolderSearchTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_folder_search_test_')
+    copy_fixture_vault(@test_vault)
+
+    # 距離0（ノート名一致）、距離1（直近の親フォルダ）、距離2（その上のフォルダ）のノートを作る
+    File.write(File.join(@test_vault, 'Factorio.md'), "# Factorio\n")
+    FileUtils.mkdir_p(File.join(@test_vault, 'Factorio'))
+    File.write(File.join(@test_vault, 'Factorio', 'Overview.md'), "# Overview\n")
+    FileUtils.mkdir_p(File.join(@test_vault, 'Factorio', 'Games'))
+    File.write(File.join(@test_vault, 'Factorio', 'Games', 'Project Cybersyn.md'), "# Project Cybersyn\n")
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_folder_name_search_matches_notes_in_matching_folder
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'Factorio')
+
+    refute result.error
+    assert result.text.include?('- Factorio'), "ノート名一致のノートが含まれていない: #{result.text}"
+    assert result.text.include?('- Overview (Factorio)'), "フォルダ名一致のノートにパスが添えられていない: #{result.text}"
+    assert result.text.include?('- Project Cybersyn (Factorio/Games)'), "フォルダ名一致のノートにパスが添えられていない: #{result.text}"
+  end
+
+  def test_matches_are_ordered_by_distance_from_the_file
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'Factorio')
+
+    lines = result.text.lines.map(&:strip).select { |line| line.start_with?('- ') }
+    assert_equal ['- Factorio', '- Overview (Factorio)', '- Project Cybersyn (Factorio/Games)'], lines,
+      "ファイルからの距離順に並んでいない: #{result.text}"
+  end
+
+  def test_search_is_case_insensitive
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'factorio')
+
+    refute result.error
+    assert result.text.include?('- Factorio'), "小文字の検索語がノート名に一致しなかった: #{result.text}"
+    assert result.text.include?('- Project Cybersyn (Factorio/Games)'), "小文字の検索語がフォルダ名に一致しなかった: #{result.text}"
+  end
+
+  def test_all_words_must_be_found_in_the_path
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'factorio cybersyn')
+
+    refute result.error
+    assert result.text.include?('- Project Cybersyn (Factorio/Games)'), "すべての語が含まれるノートが返されなかった: #{result.text}"
+
+    result = ObsidianFetch.list_notes(vault.vault, 'factorio nonexistent')
+    assert result.error, 'すべての語が含まれないノートが返された'
+  end
+
+  def test_response_reports_the_breakdown_of_matches
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'Factorio')
+
+    assert result.text.include?('3 notes matched'), "マッチ総件数が応答に含まれていない: #{result.text}"
+    assert result.text.include?('1 by note name, 2 by folder name'), "マッチの内訳が応答に含まれていない: #{result.text}"
+  end
+
+  # limit を超えるマッチがある場合、距離順が保たれ、同じ距離内での選択は乱数で決まることをテストする
+  # Array#shuffle はシステムの乱数を使うので、srand で seed を固定すれば結果を再現できる
+  def test_truncation_keeps_closer_matches_and_is_reproducible_with_a_seed
+    # 同じ距離内のノートを増やして、選択がランダムになる条件を作る
+    3.times do |i|
+      File.write(File.join(@test_vault, 'Factorio', "Extra_#{i}.md"), "# Extra_#{i}\n")
+    end
+
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    same_distance = ['- Overview (Factorio)', '- Extra_0 (Factorio)', '- Extra_1 (Factorio)', '- Extra_2 (Factorio)']
+
+    srand(42)
+    first = ObsidianFetch.list_notes(vault.vault, 'Factorio', limit: 3)
+    first_lines = first.text.lines.map(&:strip).select { |line| line.start_with?('- ') }
+
+    srand(42)
+    second = ObsidianFetch.list_notes(vault.vault, 'Factorio', limit: 3)
+    second_lines = second.text.lines.map(&:strip).select { |line| line.start_with?('- ') }
+
+    refute first.error
+    assert_equal 3, first_lines.length, "limit(3) と異なる件数が返された: #{first.text}"
+    assert_equal '- Factorio', first_lines.first, "距離0のノートが上位に置かれなかった: #{first.text}"
+    # 距離1のノートが4件あり、残り枠は2件なので、距離2のノートは削られる
+    refute first_lines.any? { |line| line.include?('Project Cybersyn') }, "距離2のノートが距離1より優先された: #{first.text}"
+    # 同じ距離内（4件）から2件を選ぶので、同じ距離内からは2件が削られる
+    assert_equal 2, (same_distance - first_lines).length, "同じ距離内からの選択が subset になっていない: #{first.text}"
+    # seed を固定したときの結果（Ruby の PRNG と Dir.glob の走査順に依存する）
+    assert_equal ['- Factorio', '- Extra_1 (Factorio)', '- Overview (Factorio)'], first_lines, "seed を固定した結果が期待どおりではありません: #{first.text}"
+    assert_equal first_lines, second_lines, "同じ seed で同じ結果にならなかった"
+  end
+end
+
 # リンク形式のテストをまとめてテスト
 class VaultLinkFormatTest < Minitest::Test
   def setup
