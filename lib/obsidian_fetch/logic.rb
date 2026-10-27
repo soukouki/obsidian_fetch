@@ -94,30 +94,58 @@ module ObsidianFetch
       return Result.new(text: <<~EOS, error: true)
         Note not found: #{name}
         However, I found other notes linked to this note.
-        #{vault.links_by_file_name[name].shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
+        #{sort_case_insensitive(vault.links_by_file_name[name].map { |file_path| File.basename(file_path, '.md') }).map { |note_name| "- #{note_name}" }.join("\n")}
       EOS
     end
-    # マッチしたノートの数が limit より多い場合は、上位 limit 個を選ぶ
+    # マッチしたノートの数が limit より多い場合は、優先順位の順に枠を埋める
+    # truncate されるグループは先頭と末尾を出す
     total = matched_notes.size
     by_name = matched_notes.count { |entry| entry[:matched_by_name] }
-    # 距離順に並べ、同じ距離内はランダムにする
-    grouped = matched_notes.group_by { |entry| entry[:distance] }
-    ordered = grouped.keys.sort.flat_map { |distance| grouped[distance].shuffle }
-    shown = ordered.first(limit)
+    tiers = matched_notes.group_by { |entry| entry[:distance] }.keys.sort.map do |distance|
+      matched_notes.select { |entry| entry[:distance] == distance }.sort_by { |entry| [entry[:note_name].downcase, entry[:note_name]] }
+    end
 
+    segments = []
+    remaining = limit
+    tiers.each do |tier|
+      break if remaining.zero?
+
+      if tier.size <= remaining
+        segments << {entries: tier, omitted_after: 0}
+        remaining -= tier.size
+      elsif remaining < 3
+        segments << {entries: tier.first(remaining), omitted_after: tier.size - remaining}
+        remaining = 0
+      else
+        head_size = (remaining * 2) / 3
+        tail_size = remaining - head_size
+        segments << {entries: tier.first(head_size), omitted_after: tier.size - remaining}
+        segments << {entries: tier.last(tail_size), omitted_after: 0}
+        remaining = 0
+      end
+    end
+
+    shown = segments.sum { |segment| segment[:entries].size }
     preface = "#{total} notes matched '#{name}'"
     preface += " (#{by_name} by note name, #{total - by_name} by folder name)" if total > by_name
     preface += ".\n"
-    preface += "I will show you #{shown.size} of them.\n" if shown.size < total
+    preface += "The list is in name order within each priority group.\n"
+    if shown < total
+      preface += "I will show you #{shown} of them. To see the rest, narrow the search or raise the limit.\n"
+    end
     preface += "Notes matching '#{name}' are as follows.\n"
-    list = shown.map do |entry|
-      if entry[:matched_by_name]
-        "- #{entry[:note_name]}"
-      else
-        "- #{entry[:note_name]} (#{entry[:display_folder]})"
+    lines = []
+    segments.each do |segment|
+      lines += segment[:entries].map do |entry|
+        if entry[:matched_by_name]
+          "- #{entry[:note_name]}"
+        else
+          "- #{entry[:note_name]} (#{entry[:display_folder]})"
+        end
       end
-    end.join("\n")
-    Result.new(text: preface + list)
+      lines << "... (#{segment[:omitted_after]} notes omitted) ..." if segment[:omitted_after].positive?
+    end
+    Result.new(text: preface + lines.join("\n") + "\n")
   end
 
   # ノート1件について検索語のマッチを判定し、マッチしていれば情報を返す
@@ -173,9 +201,14 @@ module ObsidianFetch
     EOS
   end
 
-  # 完全一致を除いた、大文字小文字の差異だけのキーを名前順で返す
+  # 大文字小文字は揃えて比較し、同値は原名の ASCII 順でタイブレークする
+  def self.sort_case_insensitive(values)
+    values.sort_by { |value| [value.downcase, value] }
+  end
+
+  # 完全一致を除いた、大文字小文字の差異だけのキーをノート名順で返す
   def self.case_variant_candidates(vault, target)
-    vault.notes.keys.reject { |note_name| note_name == target }.select { |note_name| note_name.downcase == target.downcase }.sort
+    sort_case_insensitive(vault.notes.keys.reject { |note_name| note_name == target }.select { |note_name| note_name.downcase == target.downcase })
   end
 
   # 完全一致を読むときに、揺らぎマッチしたノート名のサジェストを組み立てる
@@ -210,20 +243,20 @@ module ObsidianFetch
       #{preface}
       Note not found: #{name}
       However, I found other notes linked to this note.
-      #{vault.links_by_file_name[name].shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
+      #{sort_case_insensitive(vault.links_by_file_name[name].map { |file_path| File.basename(file_path, '.md') }).map { |note_name| "- #{note_name}" }.join("\n")}
     EOS
   end
 
   def self.open_file(name, file_pathes, preface, vault)
     # 複数のファイルがある場合は、---とファイル名で区切って返す
-    result = file_pathes.map do |file_path|
+    result = sort_case_insensitive(file_pathes).map do |file_path|
       content = open(file_path) { |f| f.read.force_encoding('UTF-8') }
       link_notes = if vault.links_by_file_path[file_path].nil?
         ""
       else
         <<~EOS
           This note is linked by the following notes:
-          #{(vault.links_by_file_path[file_path] || []).shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
+          #{sort_case_insensitive(vault.links_by_file_path[file_path].map { |linked_path| File.basename(linked_path, '.md') }).map { |note_name| "- #{note_name}" }.join("\n")}
         EOS
       end
       metadata = <<~EOS
