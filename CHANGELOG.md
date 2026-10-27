@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.3.1] - 2026-10-28
 
 - streamable-http transport: disabled the DNS rebinding protection for convenience in closed container networks.
 
