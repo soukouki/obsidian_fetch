@@ -226,35 +226,63 @@ class VaultFolderSearchTest < Minitest::Test
     assert result.text.include?('1 by note name, 2 by folder name'), "マッチの内訳が応答に含まれていない: #{result.text}"
   end
 
-  # limit を超えるマッチがある場合、距離順が保たれ、同じ距離内での選択は乱数で決まることをテストする
-  # Array#shuffle はシステムの乱数を使うので、srand で seed を固定すれば結果を再現できる
-  def test_truncation_keeps_closer_matches_and_is_reproducible_with_a_seed
-    # 同じ距離内のノートを増やして、選択がランダムになる条件を作る
-    3.times do |i|
-      File.write(File.join(@test_vault, 'Factorio', "Extra_#{i}.md"), "# Extra_#{i}\n")
-    end
+  # 同じ距離内は大文字小文字を揃えて比較し、同値は原名の ASCII 順でタイブレークすることをテストする
+  def test_names_are_sorted_case_insensitively_within_a_group
+    File.write(File.join(@test_vault, 'Factorio', 'Beta.md'), "# Beta\n")
+    File.write(File.join(@test_vault, 'Factorio', 'alpha.md'), "# alpha\n")
 
     vault = ObsidianFetch::VaultManager.new([@test_vault])
-    same_distance = ['- Overview (Factorio)', '- Extra_0 (Factorio)', '- Extra_1 (Factorio)', '- Extra_2 (Factorio)']
+    result = ObsidianFetch.list_notes(vault.vault, 'Factorio')
 
-    srand(42)
-    first = ObsidianFetch.list_notes(vault.vault, 'Factorio', limit: 3)
-    first_lines = first.text.lines.map(&:strip).select { |line| line.start_with?('- ') }
+    lines = result.text.lines.map(&:strip).select { |line| line.start_with?('- ') }
+    assert_equal ['- Factorio', '- alpha (Factorio)', '- Beta (Factorio)', '- Overview (Factorio)', '- Project Cybersyn (Factorio/Games)'], lines,
+      "同じ距離内がノート名順に並んでいない: #{result.text}"
+  end
+end
 
-    srand(42)
-    second = ObsidianFetch.list_notes(vault.vault, 'Factorio', limit: 3)
-    second_lines = second.text.lines.map(&:strip).select { |line| line.start_with?('- ') }
+# limit を超えるマッチがある場合の truncate の挙動をテストする
+class VaultTruncationTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_truncation_test_')
 
-    refute first.error
-    assert_equal 3, first_lines.length, "limit(3) と異なる件数が返された: #{first.text}"
-    assert_equal '- Factorio', first_lines.first, "距離0のノートが上位に置かれなかった: #{first.text}"
-    # 距離1のノートが4件あり、残り枠は2件なので、距離2のノートは削られる
-    refute first_lines.any? { |line| line.include?('Project Cybersyn') }, "距離2のノートが距離1より優先された: #{first.text}"
-    # 同じ距離内（4件）から2件を選ぶので、同じ距離内からは2件が削られる
-    assert_equal 2, (same_distance - first_lines).length, "同じ距離内からの選択が subset になっていない: #{first.text}"
-    # seed を固定したときの結果（Ruby の PRNG と Dir.glob の走査順に依存する）
-    assert_equal ['- Factorio', '- Extra_1 (Factorio)', '- Overview (Factorio)'], first_lines, "seed を固定した結果が期待どおりではありません: #{first.text}"
-    assert_equal first_lines, second_lines, "同じ seed で同じ結果にならなかった"
+    # 距離0のグループ: Factorio.md
+    File.write(File.join(@test_vault, 'Factorio.md'), "# Factorio\n")
+    # 距離1のグループ: Factorio 配下に6件
+    FileUtils.mkdir_p(File.join(@test_vault, 'Factorio'))
+    6.times do |i|
+      File.write(File.join(@test_vault, 'Factorio', "note_#{i}.md"), "# note_#{i}\n")
+    end
+    # 距離2のグループ: Factorio/Games 配下に1件
+    FileUtils.mkdir_p(File.join(@test_vault, 'Factorio', 'Games'))
+    File.write(File.join(@test_vault, 'Factorio', 'Games', 'deep.md'), "# deep\n")
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_truncation_shows_head_and_tail_of_the_truncated_group
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'Factorio', limit: 4)
+
+    refute result.error
+    assert result.text.include?('I will show you 4 of them. To see the rest, narrow the search or raise the limit.'), "案内文が表示されていない: #{result.text}"
+
+    lines = result.text.lines.map(&:strip).select { |line| line.start_with?('- ') || line.start_with?('...') }
+    assert_equal ['- Factorio', '- note_0 (Factorio)', '- note_1 (Factorio)', '... (3 notes omitted) ...', '- note_5 (Factorio)'], lines,
+      "先頭と末尾の表示が期待どおりではありません: #{result.text}"
+    # 枠を使い切ったので、優先順位の低いグループ（距離2）は表示されない
+    refute result.text.include?('deep'), "優先順位の低いグループが表示されている: #{result.text}"
+  end
+
+  def test_truncation_shows_head_only_when_the_remaining_slots_are_less_than_three
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'Factorio', limit: 3)
+
+    refute result.error
+    lines = result.text.lines.map(&:strip).select { |line| line.start_with?('- ') || line.start_with?('...') }
+    assert_equal ['- Factorio', '- note_0 (Factorio)', '- note_1 (Factorio)', '... (4 notes omitted) ...'], lines,
+      "先頭だけの表示が期待どおりではありません: #{result.text}"
   end
 end
 
@@ -371,6 +399,18 @@ class VaultBacklinkFallbackTest < Minitest::Test
     assert result.text.include?('However, I found other notes linked to this note'), 'バックリンクのメッセージが表示されていない'
     assert result.text.include?('Links to NonExistent'), 'バックリンク先ノート名が表示されていない'
   end
+
+  def test_backlink_fallback_list_is_sorted_by_note_name
+    File.write(File.join(@test_vault, 'beta.md'), "# beta\n\n[[Phantom Note]]\n")
+    File.write(File.join(@test_vault, 'Alpha.md'), "# Alpha\n\n[[Phantom Note]]\n")
+
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.list_notes(vault.vault, 'Phantom Note')
+
+    lines = result.text.lines.map(&:strip).select { |line| line.start_with?('- ') }
+    assert_equal ['- Alpha', '- beta', '- Links to NonExistent'], lines,
+      "フォールバックのリストがノート名順に並んでいない: #{result.text}"
+  end
 end
 
 # read_note のバックリンク表示をテスト
@@ -403,6 +443,19 @@ class VaultReadBacklinkTest < Minitest::Test
 
     # 複数のリンク元ノートが表示される
     assert result.text.include?('Links to HW'), '複数のバックリンクが表示されていない'
+  end
+
+  def test_backlinks_are_sorted_by_note_name
+    File.write(File.join(@test_vault, 'beta.md'), "# beta\n\n[[Hello World]]\n")
+    File.write(File.join(@test_vault, 'Alpha.md'), "# Alpha\n\n[[Hello World]]\n")
+
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'Hello World')
+
+    order = ['- Alpha', '- beta', '- Links to HW', '- Refers to Hello']
+    positions = order.map { |line| result.text.index(line) }
+    assert positions.none?(&:nil?), "バックリンクが表示されていない: #{result.text}"
+    assert positions == positions.sort, "バックリンクがノート名順に並んでいない: #{result.text}"
   end
 end
 
@@ -540,5 +593,28 @@ class VaultReadCaseTest < Minitest::Test
     assert result.text.include?('renamed'), "パス補正の旨が表示されていない: #{result.text}"
     assert result.text.include?('The following note has the same name with different capitalization'), "揺らぎマッチの旨が表示されていない: #{result.text}"
     assert result.text.include?('path content'), "揺らぎマッチしたノートの内容が返されていない: #{result.text}"
+  end
+end
+
+# open_file のファイル列挙の順序をテスト
+class VaultFilePathOrderTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_file_path_order_test_')
+
+    FileUtils.mkdir_p(File.join(@test_vault, 'aaa'))
+    FileUtils.mkdir_p(File.join(@test_vault, 'BBB'))
+    File.write(File.join(@test_vault, 'aaa', 'Same Name.md'), "# first\n")
+    File.write(File.join(@test_vault, 'BBB', 'Same Name.md'), "# second\n")
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_files_are_listed_in_path_order
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'Same Name')
+
+    assert result.text.index('first') < result.text.index('second'), "ファイル列挙がパス順で並んでいない: #{result.text}"
   end
 end
