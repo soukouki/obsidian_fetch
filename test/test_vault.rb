@@ -225,6 +225,37 @@ class VaultFolderSearchTest < Minitest::Test
     assert result.text.include?('3 notes matched'), "マッチ総件数が応答に含まれていない: #{result.text}"
     assert result.text.include?('1 by note name, 2 by folder name'), "マッチの内訳が応答に含まれていない: #{result.text}"
   end
+
+  # limit を超えるマッチがある場合、距離順が保たれ、同じ距離内での選択は乱数で決まることをテストする
+  # Array#shuffle はシステムの乱数を使うので、srand で seed を固定すれば結果を再現できる
+  def test_truncation_keeps_closer_matches_and_is_reproducible_with_a_seed
+    # 同じ距離内のノートを増やして、選択がランダムになる条件を作る
+    3.times do |i|
+      File.write(File.join(@test_vault, 'Factorio', "Extra_#{i}.md"), "# Extra_#{i}\n")
+    end
+
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    same_distance = ['- Overview (Factorio)', '- Extra_0 (Factorio)', '- Extra_1 (Factorio)', '- Extra_2 (Factorio)']
+
+    srand(42)
+    first = ObsidianFetch.list_notes(vault.vault, 'Factorio', limit: 3)
+    first_lines = first.text.lines.map(&:strip).select { |line| line.start_with?('- ') }
+
+    srand(42)
+    second = ObsidianFetch.list_notes(vault.vault, 'Factorio', limit: 3)
+    second_lines = second.text.lines.map(&:strip).select { |line| line.start_with?('- ') }
+
+    refute first.error
+    assert_equal 3, first_lines.length, "limit(3) と異なる件数が返された: #{first.text}"
+    assert_equal '- Factorio', first_lines.first, "距離0のノートが上位に置かれなかった: #{first.text}"
+    # 距離1のノートが4件あり、残り枠は2件なので、距離2のノートは削られる
+    refute first_lines.any? { |line| line.include?('Project Cybersyn') }, "距離2のノートが距離1より優先された: #{first.text}"
+    # 同じ距離内（4件）から2件を選ぶので、同じ距離内からは2件が削られる
+    assert_equal 2, (same_distance - first_lines).length, "同じ距離内からの選択が subset になっていない: #{first.text}"
+    # seed を固定したときの結果（Ruby の PRNG と Dir.glob の走査順に依存する）
+    assert_equal ['- Factorio', '- Extra_1 (Factorio)', '- Overview (Factorio)'], first_lines, "seed を固定した結果が期待どおりではありません: #{first.text}"
+    assert_equal first_lines, second_lines, "同じ seed で同じ結果にならなかった"
+  end
 end
 
 # リンク形式のテストをまとめてテスト
