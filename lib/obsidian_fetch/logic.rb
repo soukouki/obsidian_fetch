@@ -129,7 +129,6 @@ module ObsidianFetch
     preface = "#{total} notes matched '#{name}'"
     preface += " (#{by_name} by note name, #{total - by_name} by folder name)" if total > by_name
     preface += ".\n"
-    preface += "The list is in name order within each priority group.\n"
     if shown < total
       preface += "I will show you #{shown} of them. To see the rest, narrow the search or raise the limit.\n"
     end
