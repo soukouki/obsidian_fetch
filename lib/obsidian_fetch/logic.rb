@@ -19,6 +19,10 @@ module ObsidianFetch
     note_name.gsub(/[\[\]\#\^|]/, '')
   end
 
+  PATH_CORRECTION_PREFACE = <<~EOS
+    Presumably a path was specified. The process was automatically renamed and processed.
+  EOS
+
   # --- ツールロジック ---
   def self.read_note(vault, name)
     name = ObsidianFetch.normalize_note_name(name)
@@ -30,28 +34,30 @@ module ObsidianFetch
       fixed_name = File.basename(name, '.md')
       file_pathes = vault.notes[fixed_name]
       if file_pathes.nil?
+        # 完全一致がない場合のみ、大文字小文字の差異を許容した検索をする
+        candidates = fuzzy_candidates(vault, fixed_name)
+        return fuzzy_match_response(vault, fixed_name, candidates, PATH_CORRECTION_PREFACE) unless candidates.empty?
+
         # もしも名前で見つからなければ、リンクにも存在しないか確認する
         link_pathes = vault.links_by_file_name[fixed_name]
         if link_pathes.nil?
           return Result.new(text: note_not_found(name), error: true)
         else
           # リンク先のノートが見つかった場合は、prefaceを追加する
-          preface = <<~EOS
-            Presumably a path was specified. The process was automatically renamed and processed.
-          EOS
-          return Result.new(text: list_links(fixed_name, preface, vault), error: true)
+          return Result.new(text: list_links(fixed_name, PATH_CORRECTION_PREFACE, vault), error: true)
         end
       else
         # ノート名が見つかった場合は、prefaceを追加する
-        preface = <<~EOS
-          Presumably a path was specified. The process was automatically renamed and processed.
-        EOS
-        return Result.new(text: open_file(fixed_name, file_pathes, preface, vault))
+        return Result.new(text: open_file(fixed_name, file_pathes, PATH_CORRECTION_PREFACE, vault))
       end
     end
 
     # 名前のノートが存在しない場合
     if file_pathes.nil?
+      # 完全一致がない場合のみ、大文字小文字の差異を許容した検索をする
+      candidates = fuzzy_candidates(vault, name)
+      return fuzzy_match_response(vault, name, candidates, preface) unless candidates.empty?
+
       return Result.new(text: note_not_found(name), error: true) if vault.links_by_file_name[name].nil?
       return Result.new(text: list_links(name, preface, vault), error: true)
     end
@@ -165,6 +171,25 @@ module ObsidianFetch
     <<~EOS
       Note not found: #{name}
     EOS
+  end
+
+  # 完全一致がない場合に、大文字小文字の差異だけを許容する候補を名前順で返す
+  def self.fuzzy_candidates(vault, target)
+    vault.notes.keys.select { |note_name| note_name.downcase == target.downcase }.sort
+  end
+
+  # 揺らぎマッチの応答を組み立てる
+  # 候補が1件のときはその内容を読み、複数のときは候補名の一覧を返す
+  def self.fuzzy_match_response(vault, target, candidates, preface)
+    if candidates.size == 1
+      note_name = candidates.first
+      message = "There is no note named '#{target}'. The following note has the same name with different capitalization:\n- #{note_name}\n\n"
+      Result.new(text: preface + message + open_file(note_name, vault.notes[note_name], "", vault), error: false)
+    else
+      message = "There is no note named '#{target}'. The following notes have the same name with different capitalization:\n" +
+        candidates.map { |note_name| "- #{note_name}" }.join("\n") + "\n"
+      Result.new(text: preface + message, error: false)
+    end
   end
 
   def self.list_links(name, preface, vault)

@@ -469,3 +469,58 @@ class VaultPathCorrectionFallbackTest < Minitest::Test
     assert result.text.include?('Links to Phantom'), 'バックリンク先ノート名が表示されていない'
   end
 end
+
+# read_note の大文字小文字の揺らぎをテスト
+class VaultReadCaseTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_read_case_test_')
+
+    File.write(File.join(@test_vault, 'Hello World.md'), "exact content\n")
+    File.write(File.join(@test_vault, 'hello world.md'), "variant content\n")
+    File.write(File.join(@test_vault, 'Solo Note.md'), "solo content\n")
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_exact_match_wins_over_case_variant
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'Hello World')
+
+    refute result.error
+    assert result.text.include?('exact content'), "完全一致のノートの内容が返されていない: #{result.text}"
+    refute result.text.include?('variant content'), "完全一致があるのに揺らぎマッチの内容が混ざっている: #{result.text}"
+    refute result.text.include?('capitalization'), "完全一致があるのに揺らぎマッチの旨が表示されている: #{result.text}"
+  end
+
+  def test_single_case_variant_is_read
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'SOLO NOTE')
+
+    refute result.error, '揺らぎマッチがエラーとして返された'
+    assert result.text.include?('solo content'), "揺らぎマッチしたノートの内容が返されていない: #{result.text}"
+    assert result.text.include?('The following note has the same name with different capitalization'), "揺らぎマッチの旨が表示されていない: #{result.text}"
+  end
+
+  def test_multiple_case_variants_are_listed_without_reading_content
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'HELLO WORLD')
+
+    refute result.error, '揺らぎマッチがエラーとして返された'
+    assert result.text.include?('- Hello World'), "候補名が表示されていない: #{result.text}"
+    assert result.text.include?('- hello world'), "候補名が表示されていない: #{result.text}"
+    refute result.text.include?('exact content'), "候補が複数あるのに内容を読んでいる: #{result.text}"
+    assert result.text.include?('The following notes have the same name with different capitalization'), "揺らぎマッチの旨が表示されていない: #{result.text}"
+  end
+
+  def test_path_input_with_case_variant
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'some/path/solo note')
+
+    refute result.error, '揺らぎマッチがエラーとして返された'
+    assert result.text.include?('renamed'), "パス補正の旨が表示されていない: #{result.text}"
+    assert result.text.include?('The following note has the same name with different capitalization'), "揺らぎマッチの旨が表示されていない: #{result.text}"
+    assert result.text.include?('solo content'), "揺らぎマッチしたノートの内容が返されていない: #{result.text}"
+  end
+end
