@@ -104,14 +104,15 @@ class ListTool < MCP::Tool
   description "Search for files with matching names partially."
   input_schema(
     properties: {
-      name: { type: "string", description: "Note name to search" }
+      name: { type: "string", description: "Note name to search" },
+      limit: { type: "integer", description: "Number of notes to return. Between 1 and #{ObsidianFetch::MAX_LIST_LIMIT}. Default: #{ObsidianFetch::MAX_LIST_SIZE}." }
     },
     required: ["name"]
   )
 
-  def self.call(name:)
+  def self.call(name:, limit: ObsidianFetch::MAX_LIST_SIZE)
     return MCP::Tool::Response.new([{ type: "text", text: "Name must be a string" }], error: true) unless name.is_a?(String)
-    result = ObsidianFetch.list_notes($manager.vault, name)
+    result = ObsidianFetch.list_notes($manager.vault, name, limit: limit)
     MCP::Tool::Response.new([{ type: "text", text: result.text }], error: result.error)
   end
 end

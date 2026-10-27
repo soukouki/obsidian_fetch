@@ -8,7 +8,10 @@ module ObsidianFetch
     end
   end
 
+  # list ツールの既定の返却件数
   MAX_LIST_SIZE = 20
+  # list ツールで指定できる返却件数の上限
+  MAX_LIST_LIMIT = 200
 
   # ノート名を正規化する
   # ファイル名に使えない文字については除去しない。aliasで設定されている場合もあるため。
@@ -56,7 +59,13 @@ module ObsidianFetch
     Result.new(text: open_file(name, file_pathes, preface, vault))
   end
 
-  def self.list_notes(vault, name)
+  def self.list_notes(vault, name, limit: MAX_LIST_SIZE)
+    unless limit.is_a?(Integer) && limit >= 1 && limit <= MAX_LIST_LIMIT
+      return Result.new(text: <<~EOS, error: true)
+        The limit must be an integer between 1 and #{MAX_LIST_LIMIT}.
+      EOS
+    end
+
     name = ObsidianFetch.normalize_note_name(name)
     split_name = name.split(/[\t \u3000]+/)
     # 空白文字で検索された場合は失敗した旨を返す
@@ -82,12 +91,12 @@ module ObsidianFetch
         #{vault.links_by_file_name[name].shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
       EOS
     end
-    # マッチした名前の数が多すぎる場合は、ランダムにMAX_LIST_SIZE個選ぶ
-    preface = "Notes matching '#{name}' are as follows.\n"
-    if matched_notes.size > MAX_LIST_SIZE
-      matched_notes = matched_notes.to_a.sample(MAX_LIST_SIZE).to_h
-      preface = "Too many notes matched. I will show you only #{MAX_LIST_SIZE} of them.\n" + preface
-    end
+    # マッチした名前の数が limit より多い場合は、ランダムに limit 個選ぶ
+    total = matched_notes.size
+    matched_notes = matched_notes.to_a.sample(limit).to_h if total > limit
+    preface = "#{total} notes matched '#{name}'.\n"
+    preface += "I will show you #{matched_notes.size} of them.\n" if matched_notes.size < total
+    preface += "Notes matching '#{name}' are as follows.\n"
     # マッチした名前のリストで返す
     list = matched_notes.keys.shuffle.map { |note_name| "- #{note_name}" }.join("\n")
     Result.new(text: preface + list)
