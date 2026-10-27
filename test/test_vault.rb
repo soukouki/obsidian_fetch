@@ -469,3 +469,76 @@ class VaultPathCorrectionFallbackTest < Minitest::Test
     assert result.text.include?('Links to Phantom'), 'バックリンク先ノート名が表示されていない'
   end
 end
+
+# read_note の大文字小文字の揺らぎをテスト
+class VaultReadCaseTest < Minitest::Test
+  def setup
+    @test_vault = Dir.mktmpdir('obsidian_read_case_test_')
+
+    # 完全一致と揺らぎマッチが区別できる内容にする
+    File.write(File.join(@test_vault, 'Hello World.md'), "exact content\n")
+    File.write(File.join(@test_vault, 'hello world.md'), "variant content\n")
+    File.write(File.join(@test_vault, 'HELLO WORLD.md'), "another variant content\n")
+    File.write(File.join(@test_vault, 'Solo Note.md'), "solo content\n")
+    File.write(File.join(@test_vault, 'solo note.md'), "solo variant content\n")
+    File.write(File.join(@test_vault, 'Group Note.md'), "group one content\n")
+    File.write(File.join(@test_vault, 'GROUP NOTE.md'), "group two content\n")
+    File.write(File.join(@test_vault, 'Path Note.md'), "path content\n")
+  end
+
+  def teardown
+    FileUtils.rm_rf(@test_vault) if @test_vault
+  end
+
+  def test_exact_match_is_read_and_case_variants_are_suggested
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'Hello World')
+
+    refute result.error
+    assert result.text.include?('exact content'), "完全一致のノートの内容が返されていない: #{result.text}"
+    refute result.text.include?('variant content'), "完全一致があるのに揺らぎマッチの内容が混ざっている: #{result.text}"
+    refute result.text.include?('another variant content'), "完全一致があるのに揺らぎマッチの内容が混ざっている: #{result.text}"
+    assert result.text.include?('There are also notes with the same name in different capitalization'), "サジェストが表示されていない: #{result.text}"
+    assert result.text.lines.map(&:strip).select { |line| line.start_with?('- ') } == ['- HELLO WORLD', '- hello world'], "サジェストが期待どおりではありません: #{result.text}"
+  end
+
+  def test_exact_match_suggests_a_single_case_variant
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'Solo Note')
+
+    refute result.error
+    assert result.text.include?('solo content'), "完全一致のノートの内容が返されていない: #{result.text}"
+    assert result.text.include?('There is also a note with the same name in different capitalization'), "サジェストが表示されていない: #{result.text}"
+    assert result.text.include?('- solo note'), "サジェストに候補名が含まれていない: #{result.text}"
+  end
+
+  def test_multiple_case_variants_are_listed_without_reading_content
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'group note')
+
+    refute result.error, '揺らぎマッチがエラーとして返された'
+    assert result.text.include?('The following notes have the same name with different capitalization'), "揺らぎマッチの旨が表示されていない: #{result.text}"
+    assert result.text.lines.map(&:strip).select { |line| line.start_with?('- ') } == ['- GROUP NOTE', '- Group Note'], "候補名が期待どおり表示されていない: #{result.text}"
+    refute result.text.include?('group one content'), "候補が複数あるのに内容を読んでいる: #{result.text}"
+    refute result.text.include?('group two content'), "候補が複数あるのに内容を読んでいる: #{result.text}"
+  end
+
+  def test_single_case_variant_is_read_when_no_exact_match_exists
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'path note')
+
+    refute result.error, '揺らぎマッチがエラーとして返された'
+    assert result.text.include?('path content'), "揺らぎマッチしたノートの内容が返されていない: #{result.text}"
+    assert result.text.include?('The following note has the same name with different capitalization'), "揺らぎマッチの旨が表示されていない: #{result.text}"
+  end
+
+  def test_path_input_with_case_variant
+    vault = ObsidianFetch::VaultManager.new([@test_vault])
+    result = ObsidianFetch.read_note(vault.vault, 'some/path/path note')
+
+    refute result.error, '揺らぎマッチがエラーとして返された'
+    assert result.text.include?('renamed'), "パス補正の旨が表示されていない: #{result.text}"
+    assert result.text.include?('The following note has the same name with different capitalization'), "揺らぎマッチの旨が表示されていない: #{result.text}"
+    assert result.text.include?('path content'), "揺らぎマッチしたノートの内容が返されていない: #{result.text}"
+  end
+end
