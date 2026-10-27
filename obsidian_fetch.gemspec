@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.summary = "MCP servers focused on fetching and presenting information from Obsidian vaults"
   spec.homepage = "https://ob.sou7.io/2025-04/week17/obsidian_fetch"
   spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.1.0"
+  spec.required_ruby_version = ">= 3.3.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/soukouki/obsidian_fetch"
@@ -30,7 +30,7 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_dependency 'mcp', '~> 0.14.0'
+  spec.add_dependency 'mcp', '~> 1.8'
 
   # For Streamable HTTP transport
   spec.add_dependency 'rack', '>= 2.0'

@@ -26,7 +26,7 @@ class McpTest < Minitest::Test
       args: [
         '-I', 'lib',
         '-I', 'test',
-        '-I', 'vendor/bundle/ruby/3.3.0/gems/simplecov-0.22.0/lib',
+        '-I', Gem::Specification.find_by_name('simplecov').full_gem_path + '/lib',
         '-r', 'coverage_injector',
         'exe/obsidian_fetch',
         @test_vault
@@ -35,6 +35,8 @@ class McpTest < Minitest::Test
     )
 
     @client = MCP::Client.new(transport: @stdio_transport)
+    # mcp 1.x では connect を明示的に呼んでからリクエストを送ります
+    @client.connect
   end
 
   def teardown

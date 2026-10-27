@@ -123,7 +123,7 @@ end
 # MCP::Server は capabilities を渡さない場合、default_capabilities を使います。
 # default_capabilities には tools だけでなく prompts、resources、logging が含まれるため、
 # リソースを持たないこのサーバーでもクライアントが resources/list を呼び出し、空の一覧が返ってしまいます。
-# https://github.com/modelcontextprotocol/ruby-sdk/blob/v0.14.0/lib/mcp/server.rb#L442
+# https://github.com/modelcontextprotocol/ruby-sdk/blob/v1.8.2/lib/mcp/server.rb
 server = MCP::Server.new(
   name: "obsidian-fetch",
   version: ObsidianFetch::VERSION,
