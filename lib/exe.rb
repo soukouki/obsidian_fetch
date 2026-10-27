@@ -136,7 +136,8 @@ case transport_type
 when 'streamable-http'
   require 'puma'
   require 'rack'
-  transport = MCP::Server::Transports::StreamableHTTPTransport.new(server, stateless: true)
+  # 閉じたネットワークにおける利便性を優先し、DNSリバインディングへの保護を無効化する。
+  transport = MCP::Server::Transports::StreamableHTTPTransport.new(server, stateless: true, dns_rebinding_protection: false)
   $stdout.sync = true
   $stderr.sync = true
   server_obj = Puma::Server.new(transport) do

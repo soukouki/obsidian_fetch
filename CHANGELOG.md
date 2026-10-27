@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+- streamable-http transport: disabled the DNS rebinding protection for convenience in closed container networks.
+
 ## [1.3.0] - 2026-10-28
 
 - Dependencies: mcp 1.8.2 (constraint `~> 1.8`), puma 8.0.2, rack 3.2.7, simplecov 1.3.2. Required Ruby is 3.3.0 or later.
