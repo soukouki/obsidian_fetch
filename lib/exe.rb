@@ -117,10 +117,17 @@ class ListTool < MCP::Tool
 end
 
 # MCPサーバーの初期化
+#
+# capabilities を明示的に指定しています。
+# MCP::Server は capabilities を渡さない場合、default_capabilities を使います。
+# default_capabilities には tools だけでなく prompts、resources、logging が含まれるため、
+# リソースを持たないこのサーバーでもクライアントが resources/list を呼び出し、空の一覧が返ってしまいます。
+# https://github.com/modelcontextprotocol/ruby-sdk/blob/v0.14.0/lib/mcp/server.rb#L442
 server = MCP::Server.new(
   name: "obsidian-fetch",
   version: ObsidianFetch::VERSION,
   tools: [ReadTool, ListTool],
+  capabilities: { tools: { listChanged: true } },
 )
 
 # トランスポートを選択してサーバーを起動
