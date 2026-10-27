@@ -101,7 +101,7 @@ class ReadTool < MCP::Tool
 end
 
 class ListTool < MCP::Tool
-  description "Search for files with matching names partially."
+  description "Search for notes whose name or containing folder names partially match."
   input_schema(
     properties: {
       name: { type: "string", description: "Note name to search" },

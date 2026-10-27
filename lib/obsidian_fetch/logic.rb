@@ -75,8 +75,8 @@ module ObsidianFetch
         It cannot be listed in a blank string.
       EOS
     end
-    matched_notes = vault.notes.select do |note_name, _file_pathes|
-      split_name.map { |name_part| note_name.include?(name_part) }.all?
+    matched_notes = vault.notes.filter_map do |note_name, file_pathes|
+      match_note(vault, note_name, file_pathes, split_name)
     end
     # 名前で検索したが見つからない場合
     if matched_notes.empty?
@@ -91,15 +91,73 @@ module ObsidianFetch
         #{vault.links_by_file_name[name].shuffle.map { |file_path| "- #{File.basename(file_path, '.md')}" }.join("\n")}
       EOS
     end
-    # マッチした名前の数が limit より多い場合は、ランダムに limit 個選ぶ
+    # マッチしたノートの数が limit より多い場合は、上位 limit 個を選ぶ
     total = matched_notes.size
-    matched_notes = matched_notes.to_a.sample(limit).to_h if total > limit
-    preface = "#{total} notes matched '#{name}'.\n"
-    preface += "I will show you #{matched_notes.size} of them.\n" if matched_notes.size < total
+    by_name = matched_notes.count { |entry| entry[:matched_by_name] }
+    # 距離順に並べ、同じ距離内はランダムにする
+    grouped = matched_notes.group_by { |entry| entry[:distance] }
+    ordered = grouped.keys.sort.flat_map { |distance| grouped[distance].shuffle }
+    shown = ordered.first(limit)
+
+    preface = "#{total} notes matched '#{name}'"
+    preface += " (#{by_name} by note name, #{total - by_name} by folder name)" if total > by_name
+    preface += ".\n"
+    preface += "I will show you #{shown.size} of them.\n" if shown.size < total
     preface += "Notes matching '#{name}' are as follows.\n"
-    # マッチした名前のリストで返す
-    list = matched_notes.keys.shuffle.map { |note_name| "- #{note_name}" }.join("\n")
+    list = shown.map do |entry|
+      if entry[:matched_by_name]
+        "- #{entry[:note_name]}"
+      else
+        "- #{entry[:note_name]} (#{entry[:display_folder]})"
+      end
+    end.join("\n")
     Result.new(text: preface + list)
+  end
+
+  # ノート1件について検索語のマッチを判定し、マッチしていれば情報を返す
+  # 距離はファイルからの距離で、ノート名は距離0、直近の親フォルダは距離1、その上が距離2とする
+  # 各語の最も近いマッチ位置のうち、最も遠いものがそのノートの距離になる
+  def self.match_note(vault, note_name, file_pathes, words)
+    lowered_words = words.map(&:downcase)
+    best = nil
+
+    file_pathes.each do |file_path|
+      vault_name, rel_path = relative_path(vault, file_path)
+      folders = rel_path.split('/')[0...-1]
+
+      distances = lowered_words.map do |word|
+        distance = note_name.downcase.include?(word) ? 0 : nil
+        folders.each_with_index do |folder, index|
+          next unless folder.downcase.include?(word)
+          candidate = folders.size - index
+          distance = candidate if distance.nil? || candidate < distance
+        end
+        distance
+      end
+      next if distances.any?(&:nil?)
+
+      display_folder = folders.join('/')
+      display_folder = File.join(vault_name, display_folder) if vault.vault_pathes.size > 1 && vault_name
+
+      entry = {
+        note_name: note_name,
+        distance: distances.max,
+        matched_by_name: distances.max.zero?,
+        display_folder: display_folder,
+      }
+      best = entry if best.nil? || entry[:distance] < best[:distance]
+    end
+
+    best
+  end
+
+  # 保管庫ルートからの相対パスと、その保管庫名を返す
+  def self.relative_path(vault, file_path)
+    vault.vault_pathes.each do |vault_path|
+      pattern = /\A#{Regexp.escape(vault_path)}\/+/
+      return [File.basename(vault_path), file_path.sub(pattern, '')] if file_path.match?(pattern)
+    end
+    [nil, File.basename(file_path)]
   end
 
   # --- ヘルパーメソッド ---
